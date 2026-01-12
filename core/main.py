@@ -28,6 +28,7 @@ _parent_dir = Path(__file__).parent.parent
 if str(_parent_dir) not in sys.path:
     sys.path.insert(0, str(_parent_dir))
 
+from core.database import get_db, init_db
 from core import models
 from core import storage
 from core.webrelay_bridge import WebRelayBridge, WebRelaySettings
@@ -147,7 +148,7 @@ class Dispatcher:
                 
                 # Final result (success or max failure)
                 print(f"[dispatcher] ✓ Job {job.id[:8]} finished with status: {synced.status}")
-                self.lcp.handle_job_result(synced)
+                _handle_lcp_followup(synced)
 
 
 
@@ -438,69 +439,67 @@ def sync_job(job_id: str):
     )
 
     # 3) Phase 10.1: Chain Context + Specs Handling (Thin Sync)
-    if job.result and isinstance(job.result, dict):
-        from core.lcp_actions import parse_lcp
-        from core.context_updaters import update_context_from_job_result
-        
-        # Try to parse LCP envelope
-        followup, final = parse_lcp(job.result, default_chain_id=job_id)
-        
-        # Determine chain_id
-        task = storage.get_task(job.task_id)
-        chain_id = task.params.get("chain_id") or job_id if task else job_id
-
-        # Update chain context from job result (e.g. store file_list after walk_tree)
-        with get_db() as conn:
-            # Ensure context exists
-            storage.ensure_chain_context(conn, chain_id, job.task_id)
-            
-            # Update artifacts (file_list, file_blobs, etc)
-            artifact_key = update_context_from_job_result(
-                conn,
-                chain_id=chain_id,
-                job_kind=job.payload.get("kind") if isinstance(job.payload, dict) else "unknown",
-                job_id=job_id,
-                result=job.result,
-                set_chain_artifact_fn=storage.set_chain_artifact
-            )
-            if artifact_key:
-                print(f"[sync_job] Updated artifact '{artifact_key}' for chain {chain_id[:12]}")
-
-        if followup or final:
-            print(f"[sync_job] LCP envelope detected for job {job_id[:12]}...")
-            
-            # Ensure chain exists in manager (creates file if needed)
-            chain_manager.ensure_chain(chain_id=chain_id, root_job_id=job_id)
-            
-            if followup:
-                # Register follow-up SPECS (not jobs!)
-                print(f"[sync_job] Registering {len(followup.jobs)} followup specs...")
-                chain_manager.register_followup_specs(
-                    chain_id=chain_id,
-                    task_id=job.task_id,
-                    root_job_id=job_id,
-                    parent_llm_job_id=job_id,
-                    job_specs=followup.jobs
-                )
-                
-                # Note: dispatch_next_llm_step is REMOVED here. 
-                # The ChainRunner (Phase 10.2) will pick up the 'needs_tick' flag.
-                
-            elif final:
-                # Close chain with final answer
-                print(f"[sync_job] Closing chain {chain_id[:12]} with final answer...")
-                chain_manager.close_chain(chain_id=chain_id, final_answer=final.answer)
-        else:
-            # No LCP envelope - run old LCP handler for legacy support
-            with measured_call(
-                source="core_v2.api.sync_job",
-                target="core_v2.lcp_actions.handle_job_result",
-                correlation_id=f"job:{job_id}",
-            ):
-                lcp.handle_job_result(job)
+    _handle_lcp_followup(job)
 
     # Job ist bereits von bridge.try_sync_result() aktualisiert
     return job
+
+def _handle_lcp_followup(job: models.Job):
+    """Unified LCP/Phase 10 follow-up logic."""
+    if not job.result or not isinstance(job.result, dict):
+        return
+
+    from core.lcp_actions import parse_lcp
+    from core.context_updaters import update_context_from_job_result
+    
+    job_id = job.id
+    
+    # Try to parse LCP envelope
+    followup, final = parse_lcp(job.result, default_chain_id=job_id)
+    
+    # Determine chain_id
+    task = storage.get_task(job.task_id)
+    chain_id = task.params.get("chain_id") or job_id if task else job_id
+
+    # Update chain context from job result (e.g. store file_list after walk_tree)
+    with get_db() as conn:
+        # Ensure context exists
+        storage.ensure_chain_context(conn, chain_id, job.task_id)
+        
+        # Update artifacts (file_list, file_blobs, etc)
+        artifact_key = update_context_from_job_result(
+            conn,
+            chain_id=chain_id,
+            job_kind=job.payload.get("kind") if isinstance(job.payload, dict) else "unknown",
+            job_id=job_id,
+            result=job.result,
+            set_chain_artifact_fn=storage.set_chain_artifact
+        )
+        if artifact_key:
+            print(f"[sync] Updated artifact '{artifact_key}' for chain {chain_id[:12]}")
+
+    if followup or final:
+        print(f"[sync] LCP envelope detected for job {job_id[:12]}...")
+        
+        # Ensure chain exists in manager (creates file if needed)
+        chain_manager.ensure_chain(chain_id=chain_id, root_job_id=job_id)
+        
+        if followup:
+            # Register follow-up SPECS (not jobs!)
+            print(f"[sync] Registering {len(followup.jobs)} followup specs...")
+            chain_manager.register_followup_specs(
+                chain_id=chain_id,
+                task_id=job.task_id,
+                root_job_id=job.payload.get("root_job_id") or job_id,
+                parent_llm_job_id=job_id,
+                job_specs=followup.jobs
+            )
+                
+        if final:
+            # Mark chain as completed
+            print(f"[sync] Final answer received for chain {chain_id[:12]}")
+            with get_db() as conn:
+                storage.set_chain_state(conn, chain_id, "completed")
 
 
 

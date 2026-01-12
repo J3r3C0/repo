@@ -348,14 +348,25 @@ class JobChainManager:
         spec_id: str,
     ) -> Dict[str, Any]:
         """
-        [Phase 10.1]
+        [Phase 10.1 + 10.2]
         Loads a spec and chain context, resolves any 'result-refs',
         and saves the resolved_params_json.
+        
+        Resolution order:
+        1. Template strings (${job.field})
+        2. paths_from_artifact (structured)
+        3. inputs_from_job_result (structured)
+        
         Returns the resolved params dictionary.
         """
         from core.database import get_db
         from core import storage
         from core.result_ref import safe_get, apply_transform
+        from core.template_resolver import (
+            build_resolution_context,
+            resolve_template_params,
+            TemplateResolutionError
+        )
 
         with get_db() as conn:
             ctx = storage.get_chain_context(conn, chain_id)
@@ -382,8 +393,23 @@ class JobChainManager:
             artifacts = ctx.get("artifacts") or {}
             resolved_params = dict(params)
 
-            # 1) resolve 'paths_from_artifact'
-            pfa = params.get("paths_from_artifact")
+            # STEP 1: Resolve template strings (${job.field})
+            try:
+                resolution_context = build_resolution_context(chain_id, storage)
+                resolved_params = resolve_template_params(
+                    resolved_params,
+                    resolution_context,
+                    strict=True  # Strict mode: fail on missing references
+                )
+                print(f"[resolve_chain_spec] Template resolution successful for spec {spec_id[:8]}")
+            except TemplateResolutionError as e:
+                print(f"[resolve_chain_spec] Template resolution failed for spec {spec_id[:8]}: {e}")
+                # In strict mode, we should fail the spec
+                # For now, log and continue with unresolved params
+                # TODO: Mark spec as 'blocked' with error message
+
+            # STEP 2: Resolve 'paths_from_artifact' (structured)
+            pfa = resolved_params.get("paths_from_artifact")
             if isinstance(pfa, str):
                 art = artifacts.get(pfa, {})
                 # Artifact format is { "value": ..., "meta": ... }
@@ -391,9 +417,9 @@ class JobChainManager:
                 if "paths_from_artifact" in resolved_params:
                     del resolved_params["paths_from_artifact"]
 
-            # 2) resolve 'inputs_from_job_result': {job_id, json_path, transform, target_param}
-            if "inputs_from_job_result" in params and isinstance(params["inputs_from_job_result"], dict):
-                rr = params["inputs_from_job_result"]
+            # STEP 3: Resolve 'inputs_from_job_result' (structured)
+            if "inputs_from_job_result" in resolved_params and isinstance(resolved_params["inputs_from_job_result"], dict):
+                rr = resolved_params["inputs_from_job_result"]
                 job_id = rr.get("job_id")
                 json_path = rr.get("json_path", "")
                 transform = rr.get("transform")

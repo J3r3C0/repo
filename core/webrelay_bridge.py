@@ -109,7 +109,10 @@ class WebRelayBridge:
         if mission is None:
             raise ValueError("Mission not found")
 
-        kind = self._infer_job_kind(task)
+        # Phase 10: Prioritize explicit kind in job payload (child jobs)
+        kind = job.payload.get("kind")
+        if not kind:
+            kind = self._infer_job_kind(task)
 
         # --- MESH ARBITRAGE LOGIC ---
         worker_id = "default_worker"

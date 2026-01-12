@@ -29,7 +29,28 @@ MANDATORY ACTIONS:
 - write_file: Write contents to a file. Params: { "path": string, "content": string }.
 - list_files: List directory contents. Params: { "path": string }.
 - read_file: Read file content. Params: { "path": string }.
+- walk_tree: Recursively discover files. Params: { "root": string, "pattern": string }.
 - analysis_result: Conclude a task with a summary.
+
+PARAMETER RESOLUTION [CRITICAL]:
+When creating follow-up jobs that depend on previous results, use these patterns:
+
+1. TEMPLATE SYNTAX (Preferred):
+   - "\${job_name.field}" - Access field from previous job result
+   - "\${job_name.files[0]}" - Array indexing
+   - "\${job_name.first_match}" - Special accessor for first file
+   
+   Example:
+   { "name": "read_file", "kind": "read_file", "params": { "path": "\${walk_tree.first_match}" } }
+
+2. SEMANTIC KEYWORDS (Alternative):
+   - "first_from_previous_job" - First file from most recent job with files
+   - "all_from_previous_job" - All files from previous job
+   
+   Example:
+   { "name": "read_file", "kind": "read_file", "params": { "path": "first_from_previous_job" } }
+
+IMPORTANT: Use concrete references, not abstract descriptions. The system will resolve these automatically.
 
 SAFETY REINFORCEMENT [GATED PIPELINE]:
 - Your proposals will be reviewed by Safety Gates (G0-G4).

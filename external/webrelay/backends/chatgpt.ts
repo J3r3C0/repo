@@ -68,18 +68,18 @@ async function ensureChatPage(browser: Browser): Promise<Page> {
 
         // Wait for page to be interactive (textarea exists)
         try {
-            await page.waitForSelector(SEL_TEXTAREA, { timeout: 10000 });
+            await page.waitForSelector(SEL_TEXTAREA, { timeout: 3000 });
         } catch (e) {
             console.log('⏳ Waiting for textarea to appear...');
         }
 
-        // --- Cloudflare Patience ---
+        // --- Cloudflare Patience (reduced timeout) ---
         let attempts = 0;
-        while (attempts < 10) {
+        while (attempts < 3) {
             const content = await page.content();
             if (content.includes('Just a moment...') || content.includes('cloudflare')) {
-                console.log('🛡️ Cloudflare Challenge detected, waiting 5s...');
-                await sleep(5000);
+                console.log('🛡️ Cloudflare Challenge detected, waiting 2s...');
+                await sleep(2000);
                 attempts++;
             } else {
                 break;
@@ -304,11 +304,11 @@ async function sendQuestionAndGetAnswer(
 
     console.log('🌐 Verbunden mit:', await page.title());
 
-    // --- Safety Check: Wait if ChatGPT is still busy from a previous run ---
+    // --- Safety Check: Wait if ChatGPT is still busy from a previous run (reduced timeout) ---
     let busyAttempts = 0;
-    while (await isGenerating(page) && busyAttempts < 30) {
+    while (await isGenerating(page) && busyAttempts < 10) {
         if (busyAttempts === 0) console.log('⏳ ChatGPT is busy, waiting...');
-        await sleep(2000);
+        await sleep(1000);
         busyAttempts++;
     }
 

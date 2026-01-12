@@ -61,13 +61,17 @@ class ChainRunner:
         self.logger.info("ChainRunner stopped.")
 
     def _run_loop(self):
+        print(f"[chain_runner] Heartbeat loop started.")
         while not self._stop_event.is_set():
             try:
                 processed_count = self.tick()
                 if processed_count == 0:
                     # Idle backoff
                     time.sleep(self.poll_interval_sec)
+                else:
+                    print(f"[chain_runner] Processed {processed_count} specs in this tick.")
             except Exception as e:
+                print(f"[chain_runner] Error in loop: {e}")
                 self.logger.error(f"Error in ChainRunner loop: {e}", exc_info=True)
                 time.sleep(5) # Error backoff
 

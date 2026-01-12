@@ -716,21 +716,23 @@ def handle_job(unified_job: dict) -> dict:
 
     print(f"[worker] handle_job job_id={job_id} job_kind={job_kind} task_kind={task_kind} worker={WORKER_ID}")
 
-    # Standard handlers
+    # Standard handlers - PRIORITIZE job_kind over task_kind (for chain follow-ups)
     result = {"ok": True}
-    if task_kind == "list_files" or task_kind == "walk_tree":
+    kind = job_kind or task_kind  # job_kind takes precedence
+    
+    if kind == "list_files" or kind == "walk_tree":
         result = list_files_from_params(merged_params)
-    elif task_kind == "read_file":
+    elif kind == "read_file":
         result = read_file_from_params(merged_params)
-    elif task_kind == "read_file_batch":
+    elif kind == "read_file_batch":
         result = read_file_batch_from_params(merged_params)
-    elif task_kind == "write_file":
+    elif kind == "write_file":
         result = write_file_from_params(merged_params)
-    elif task_kind == "rewrite_file":
+    elif kind == "rewrite_file":
         result = rewrite_file_from_params(job_id, merged_params, job_params)
-    elif task_kind == "pdf_to_json":
+    elif kind == "pdf_to_json":
         result = pdf_to_json_from_params(merged_params)
-    elif task_kind == "llm_call" or task_kind == "agent_plan":
+    elif kind == "llm_call" or kind == "agent_plan":
         result = call_llm_generic(unified_job)
     elif job_params.get("job_type") or lcp.get("job_type") == "sheratan_selfloop":
         print(f"[worker] Self-Loop job detected: {job_id}")
@@ -740,7 +742,7 @@ def handle_job(unified_job: dict) -> dict:
         result = {
             "ok": True,
             "action": "noop",
-            "message": f"Completed job {job_id} with kind={job_kind} (no specific handler)",
+            "message": f"Completed job {job_id} with kind={kind} (no specific handler)",
             "payload_echo": lcp,
         }
 

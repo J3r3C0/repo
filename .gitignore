@@ -45,6 +45,23 @@ backup/
 archive/
 
 # -----------------------------------------------------------------------------
+# Security: Private Keys (NEVER COMMIT REAL KEYS)
+# -----------------------------------------------------------------------------
+
+# Offgrid keys (keep only example templates)
+mesh/offgrid/keys/*.json
+!mesh/offgrid/keys/*.example.json
+!mesh/offgrid/keys/revocations.json
+
+# Any other private keys
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# -----------------------------------------------------------------------------
 # Python
 # -----------------------------------------------------------------------------
 

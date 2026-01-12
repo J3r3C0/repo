@@ -382,6 +382,31 @@ def get_chain_context(conn, chain_id: str) -> Optional[Dict[str, Any]]:
         "needs_tick": int(row[6] or 0),
     }
 
+def list_chains_by_mission(conn, mission_id: str) -> List[Dict[str, Any]]:
+    """List all chain contexts associated with tasks of a given mission."""
+    rows = conn.execute(
+        """
+        SELECT cc.chain_id, cc.task_id, cc.state, cc.limits_json, cc.artifacts_json, cc.error_json, cc.needs_tick 
+        FROM chain_context cc
+        JOIN tasks t ON cc.task_id = t.id
+        WHERE t.mission_id = ?
+        """,
+        (mission_id,),
+    ).fetchall()
+    
+    results = []
+    for row in rows:
+        results.append({
+            "chain_id": row[0],
+            "task_id": row[1],
+            "state": row[2],
+            "limits": _json_loads(row[3]) or {},
+            "artifacts": _json_loads(row[4]) or {},
+            "error": _json_loads(row[5]) if row[5] else None,
+            "needs_tick": int(row[6] or 0),
+        })
+    return results
+
 def set_chain_state(conn, chain_id: str, state: str, error: Optional[Dict[str, Any]] = None) -> None:
     """Update chain state."""
     now = _now_iso()

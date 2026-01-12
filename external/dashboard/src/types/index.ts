@@ -209,3 +209,23 @@ export interface ServiceNode {
   status: "active" | "inactive" | "error";
   dependencies: string[];
 }
+
+// Chain Context & Artifacts
+export interface ChainArtifact {
+  value: any;
+  meta: {
+    source_job_id: string;
+    created_at: string;
+    [key: string]: any;
+  };
+}
+
+export interface ChainContext {
+  chain_id: string;
+  task_id: string;
+  state: "running" | "completed" | "failed";
+  limits: Record<string, any>;
+  artifacts: Record<string, ChainArtifact>;
+  error: any | null;
+  needs_tick: number;
+}

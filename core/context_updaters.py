@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional
+from core import storage
 
 def update_context_from_job_result(
     conn,

@@ -98,4 +98,12 @@ export const missionsApi = {
     delete: async (id: string): Promise<void> => {
         await apiClient.delete(`/missions/${id}`);
     },
+
+    // Formuliere einen neuen Auftrag (Agent Plan)
+    submitMission: async (prompt: string): Promise<{ mission_id: string }> => {
+        const response = await apiClient.post<{ mission: { id: string } }>('/missions/agent-plan', {
+            user_prompt: prompt
+        });
+        return { mission_id: response.data.mission.id };
+    }
 };

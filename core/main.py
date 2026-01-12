@@ -308,6 +308,21 @@ def delete_mission(mission_id: str):
         raise HTTPException(404, "Mission not found")
     return {"ok": True, "deleted": mission_id}
 
+@app.get("/api/missions/{mission_id}/chains")
+def get_mission_chains(mission_id: str):
+    """Retrieve all autonomous chains associated with a mission."""
+    with get_db() as conn:
+        return storage.list_chains_by_mission(conn, mission_id)
+
+@app.get("/api/chains/{chain_id}/context")
+def get_chain_context(chain_id: str):
+    """Retrieve the context and artifacts for a specific autonomous chain."""
+    with get_db() as conn:
+        ctx = storage.get_chain_context(conn, chain_id)
+        if not ctx:
+            raise HTTPException(status_code=404, detail="Chain context not found")
+        return ctx
+
 
 # ------------------------------------------------------------------------------
 # TASKS – CRUD
@@ -793,6 +808,60 @@ def create_standard_code_analysis():
 
     # 4. Auto-Queue (Dispatcher takes over)
     print(f"[api] QuickStart mission created: {mission.id[:8]}. Job {job.id[:8]} queued.")
+    
+    return {
+        "mission": {"id": mission.id, "title": mission.title},
+        "task": {"id": task.id, "name": task.name},
+        "job": {"id": job.id}
+    }
+
+@app.post("/api/missions/agent-plan")
+def create_agent_plan_mission(payload: dict):
+    """Generic entry point for natural language missions."""
+    prompt = payload.get("user_prompt")
+    if not prompt:
+        raise HTTPException(400, "Missing user_prompt")
+        
+    title = f"Mission: {prompt[:30]}..."
+    description = prompt
+    
+    # 1. Create Mission
+    mission_create = models.MissionCreate(
+        title=title,
+        description=description,
+        metadata={"created_by": "mission_control", "type": "autonomous", "max_iterations": 100}
+    )
+    mission = models.Mission.from_create(mission_create)
+    storage.create_mission(mission)
+    
+    # 2. Create agent_plan Task
+    task_create = models.TaskCreate(
+        name="Autonomous Planning",
+        description="Plan and execute based on user prompt.",
+        kind="agent_plan",
+        params={
+            "user_prompt": prompt,
+            "project_root": str(SHERATAN_ROOT)
+        }
+    )
+    task = models.Task.from_create(mission.id, task_create)
+    storage.create_task(task)
+    
+    # 3. Create Job
+    job_create = models.JobCreate(
+        payload={
+            "task": {
+                "kind": "agent_plan",
+                "params": task_create.params
+            },
+            "params": {
+                **task_create.params,
+                "iteration": 1
+            }
+        }
+    )
+    job = models.Job.from_create(task.id, job_create)
+    storage.create_job(job)
     
     return {
         "mission": {"id": mission.id, "title": mission.title},

@@ -30,6 +30,7 @@ from core.mcts_light import mcts
 from core.decision_trace import trace_logger
 from core.candidate_schema import Candidate, validate_candidates, candidates_to_dicts
 from core.scoring import compute_score_v1
+from core.determinism import compute_input_hash, compute_output_hash
 
 
 def build_dispatch_candidates(
@@ -144,13 +145,19 @@ def dispatch_with_mcts(
     
     latency_ms = (time.time() - start_time) * 1000
     
-    # 4. Calculate score
+    # 4. Determine cost/tokens (semantic cleanup)
+    # Local workers: cost=0, tokens not measured
+    # WebRelay/API: use actual cost/tokens if available
+    actual_cost = 0.0  # Local dispatch has no cost
+    actual_tokens = None  # Not measured for local dispatch
+    
+    # 5. Calculate score
     score_breakdown = compute_score_v1(
         success=1.0 if result_status == "success" else 0.0,
         quality=0.8,  # TODO: Measure actual quality
         reliability=0.9,  # TODO: Measure actual reliability
         latency_ms=latency_ms,
-        cost=chosen_dict.get("cost_estimate", 0.0),
+        cost=actual_cost,
         risk=chosen_dict.get("risk_penalty", 0.0),
         latency_p50=500,
         latency_p95=2000,
@@ -158,42 +165,72 @@ def dispatch_with_mcts(
         cost_p95=10.0
     )
     
-    # 5. Log decision trace
+    # 6. Compute determinism hashes
+    state_obj = {
+        "context_refs": [f"job:{job_id}"],
+        "constraints": {
+            "budget_remaining": 100.0,
+            "time_remaining_ms": 30000,
+            "readonly": False,
+            "risk_level": "low"
+        }
+    }
+    
+    action_obj = {
+        "action_id": chosen_dict["action_id"],
+        "type": chosen_dict["type"],
+        "mode": chosen_dict["mode"],
+        "params": chosen_dict["params"],
+        "select_score": chosen_dict["select_score"],
+        "risk_gate": chosen_dict["risk_gate"]
+    }
+    
+    metrics_obj = {
+        "latency_ms": latency_ms,
+        "cost": actual_cost,
+        "retries": 0,
+        "risk": chosen_dict.get("risk_penalty", 0.0),
+        "quality": 0.8
+    }
+    # Only include tokens if measured (not None)
+    if actual_tokens is not None:
+        metrics_obj["tokens"] = actual_tokens
+    
+    input_hash = compute_input_hash(
+        job_id=job_id,
+        intent=intent,
+        action_type=action_obj["type"],
+        action_params=action_obj["params"],
+        state_constraints=state_obj["constraints"],
+        state_context_refs=state_obj["context_refs"]
+    )
+    
+    output_hash = compute_output_hash(
+        status=result_status,
+        score=score_breakdown["score"],
+        metrics=metrics_obj,
+        error_code=result_error["code"] if result_error else None,
+        artifacts=[f"job_result:{job_id}"]
+    )
+    
+    # 7. Log decision trace
     try:
         node_id = trace_logger.log_node(
             trace_id=trace_id,
             intent=intent,
             build_id=build_id,
-            state={
-                "context_refs": [f"job:{job_id}"],
-                "constraints": {
-                    "budget_remaining": 100.0,  # TODO: Get from config
-                    "time_remaining_ms": 30000,
-                    "readonly": False,
-                    "risk_level": "low"
-                }
-            },
-            action={
-                "action_id": chosen_dict["action_id"],
-                "type": chosen_dict["type"],
-                "mode": chosen_dict["mode"],
-                "params": chosen_dict["params"],
-                "select_score": chosen_dict["select_score"],
-                "risk_gate": chosen_dict["risk_gate"]
-            },
+            state=state_obj,
+            action=action_obj,
             result={
                 "status": result_status,
-                "metrics": {
-                    "latency_ms": latency_ms,
-                    "cost": chosen_dict.get("cost_estimate", 0.0),
-                    "tokens": 0,
-                    "retries": 0,
-                    "risk": chosen_dict.get("risk_penalty", 0.0),
-                    "quality": 0.8
-                },
+                "metrics": metrics_obj,
                 "score": score_breakdown["score"],
                 "error": result_error,
-                "artifacts": [f"job_result:{job_id}"]
+                "artifacts": [f"job_result:{job_id}"],
+                "determinism": {
+                    "input_hash": input_hash,
+                    "output_hash": output_hash
+                }
             },
             job_id=job_id,
             depth=0
@@ -203,7 +240,7 @@ def dispatch_with_mcts(
         print(f"[WARN] Decision trace schema breach: {e}")
         node_id = None
     
-    # 6. Update policy
+    # 8. Update policy
     if node_id:
         mcts.update_policy(intent, chosen_dict["prior_key"], score_breakdown["score"])
     

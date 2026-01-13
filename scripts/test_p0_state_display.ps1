@@ -22,26 +22,26 @@ try {
         "  Initial state: $($stateBefore.state)" | Out-File -FilePath $stdout -Append -Encoding utf8
         "  Transitions logged: $transitionsBefore" | Out-File -FilePath $stdout -Append -Encoding utf8
         
-        # Transition 1: PAUSED → RUNNING
-        "[2/4] Triggering transition: PAUSED -> RUNNING..." | Out-File -FilePath $stdout -Append -Encoding utf8
+        # Transition 1: PAUSED → OPERATIONAL
+        "[2/4] Triggering transition: PAUSED -> OPERATIONAL..." | Out-File -FilePath $stdout -Append -Encoding utf8
         $transition1 = Invoke-RestMethod -Uri "http://localhost:8001/api/system/state/transition" `
             -Method POST `
             -Headers @{"Content-Type"="application/json"} `
-            -Body '{"next_state": "RUNNING", "reason": "P0 test transition"}'
+            -Body '{"state": "OPERATIONAL", "reason": "P0 test transition"}'
         
         Start-Sleep -Seconds 1
         
-        # Verify RUNNING
+        # Verify OPERATIONAL
         $stateRunning = Invoke-RestMethod -Uri "http://localhost:8001/api/system/state" -Method GET
-        Assert-True -Expr ($stateRunning.state -eq "RUNNING") -Message "State should be RUNNING, got: $($stateRunning.state)"
-        "  [OK] State is RUNNING" | Out-File -FilePath $stdout -Append -Encoding utf8
+        Assert-True -Expr ($stateRunning.state -eq "OPERATIONAL") -Message "State should be OPERATIONAL, got: $($stateRunning.state)"
+        "  [OK] State is OPERATIONAL" | Out-File -FilePath $stdout -Append -Encoding utf8
         
-        # Transition 2: RUNNING → PAUSED
-        "[3/4] Triggering transition: RUNNING -> PAUSED..." | Out-File -FilePath $stdout -Append -Encoding utf8
+        # Transition 2: OPERATIONAL → PAUSED
+        "[3/4] Triggering transition: OPERATIONAL -> PAUSED..." | Out-File -FilePath $stdout -Append -Encoding utf8
         $transition2 = Invoke-RestMethod -Uri "http://localhost:8001/api/system/state/transition" `
             -Method POST `
             -Headers @{"Content-Type"="application/json"} `
-            -Body '{"next_state": "PAUSED", "reason": "P0 test transition back"}'
+            -Body '{"state": "PAUSED", "reason": "P0 test transition back"}'
         
         Start-Sleep -Seconds 1
         
@@ -61,9 +61,9 @@ try {
     }
 
     $metrics = @{
-        transitions_before = $transitionsBefore
-        transitions_after = $transitionsAfter
-        transitions_added = $transitionsAfter - $transitionsBefore
+        transitions_before = if ($null -ne $transitionsBefore) { $transitionsBefore } else { 0 }
+        transitions_after = if ($null -ne $transitionsAfter) { $transitionsAfter } else { 0 }
+        transitions_added = if ($null -ne $transitionsBefore -and $null -ne $transitionsAfter) { $transitionsAfter - $transitionsBefore } else { 0 }
     }
     
     $res = New-TestResult -Test $testName -Pass $true -DurationMs $ms -Metrics $metrics -Artifacts @($stdout)

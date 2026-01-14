@@ -32,6 +32,7 @@ class AnomalyDetector:
         self._lock = threading.RLock()
         self._max = int(max_anomalies)
         self._items: List[Anomaly] = []
+        self._reflective_trigger = None  # Callback to trigger REFLECTIVE mode
 
         # default per-metric z-score thresholds
         self._z = {
@@ -48,6 +49,38 @@ class AnomalyDetector:
             "avg_job_latency_ms_max": 5000,
             "state_transition_rate_max": 10.0,  # depends on your unit later
         }
+
+    def set_reflective_trigger(self, callback):
+        """Set callback to trigger REFLECTIVE mode when anomalies exceed threshold."""
+        self._reflective_trigger = callback
+
+    def check_trigger_threshold(self, anomalies: List[Dict[str, Any]]) -> bool:
+        """
+        Check if anomalies exceed threshold for auto-triggering REFLECTIVE mode.
+        Returns True if REFLECTIVE was triggered.
+        """
+        if not self._reflective_trigger:
+            return False
+        
+        critical = [a for a in anomalies if a.get("severity") == "error"]
+        warnings = [a for a in anomalies if a.get("severity") == "warning"]
+        
+        # Threshold: 3+ critical OR 10+ warnings
+        should_trigger = len(critical) >= 3 or len(warnings) >= 10
+        
+        if should_trigger:
+            print(f"[anomaly] Threshold exceeded: {len(critical)} critical, {len(warnings)} warnings")
+            try:
+                self._reflective_trigger(
+                    reason=f"Anomaly threshold exceeded ({len(critical)} critical, {len(warnings)} warnings)",
+                    trigger_data={"critical_count": len(critical), "warning_count": len(warnings), "anomalies": anomalies[:5]}
+                )
+                return True
+            except Exception as e:
+                print(f"[anomaly] Failed to trigger REFLECTIVE: {e}")
+                return False
+        
+        return False
 
     # ----------------------------
     # Public API

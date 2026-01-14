@@ -237,6 +237,14 @@ async def lifespan(app: FastAPI):
     diagnostic_engine.start()
     print(f"[diagnostic] Self-diagnostic engine started")
     
+    # 3.5. Register transition hooks
+    state_machine.register_hook(baseline_tracker.on_state_transition)
+    print(f"[state] Registered baseline tracker transition hook")
+    
+    # 3.6. Wire anomaly detector to diagnostic engine
+    anomaly_detector.set_reflective_trigger(diagnostic_engine.enter_reflective_mode)
+    print(f"[anomaly] Wired anomaly detector to diagnostic engine for REFLECTIVE auto-trigger")
+    
     # 4. Start Dispatcher (Legacy)
     try:
         import traceback

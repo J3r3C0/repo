@@ -127,6 +127,7 @@ class SystemStateMachine:
         self.actor_default = actor_default
 
         self._snapshot: Optional[StateSnapshot] = None
+        self._transition_hooks = []  # Hooks called after successful transitions
 
         # Transition policy:
         # (from, to) -> allowed
@@ -177,6 +178,15 @@ class SystemStateMachine:
         self._persist_snapshot(snap)
         return snap
 
+    def register_hook(self, hook_fn):
+        """
+        Register a transition hook function.
+        Hook signature: hook_fn(event: TransitionEvent, prev_snapshot: StateSnapshot, new_snapshot: StateSnapshot)
+        """
+        if hook_fn not in self._transition_hooks:
+            self._transition_hooks.append(hook_fn)
+            logger.info(f"[state] Registered transition hook: {hook_fn.__name__}")
+
     def transition(
         self,
         next_state: SystemState,
@@ -210,6 +220,15 @@ class SystemStateMachine:
 
         ev = self._make_event(prev, next_state, reason, actor, meta)
 
+        # Save previous snapshot for hooks
+        prev_snapshot = StateSnapshot(
+            state=snap.state,
+            since_ts=snap.since_ts,
+            last_transition=snap.last_transition,
+            health=dict(snap.health) if snap.health else None,
+            counters=dict(snap.counters) if snap.counters else None,
+        )
+
         # mutate snapshot
         snap.state = next_state.value
         snap.since_ts = ev.ts
@@ -218,6 +237,13 @@ class SystemStateMachine:
         # persist + log
         self._persist_snapshot(snap)
         self._append_event(ev)
+
+        # Call transition hooks
+        for hook in self._transition_hooks:
+            try:
+                hook(ev, prev_snapshot, snap)
+            except Exception as e:
+                logger.error(f"[state] Transition hook failed: {e}", exc_info=True)
 
         return ev
 

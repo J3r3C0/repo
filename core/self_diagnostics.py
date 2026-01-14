@@ -367,3 +367,140 @@ class SelfDiagnosticEngine:
 
     def _ts_utc(self) -> str:
         return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    # ----------------------------
+    # REFLECTIVE State Workflow
+    # ----------------------------
+
+    def enter_reflective_mode(self, reason: str, trigger_data: Dict[str, Any]) -> None:
+        """
+        Enter REFLECTIVE state and run comprehensive diagnostics.
+        Called by anomaly detector or manually.
+        """
+        from core.state_machine import SystemState
+        
+        try:
+            print(f"[diagnostic] Entering REFLECTIVE mode: {reason}")
+            
+            # Transition to REFLECTIVE
+            self.state_machine.transition(
+                SystemState.REFLECTIVE,
+                reason=reason,
+                actor="diagnostic_engine",
+                meta={"trigger": trigger_data}
+            )
+            
+            # Run comprehensive diagnostic
+            report = self.run_reflective_diagnostic()
+            
+            # Determine next state based on findings
+            self.exit_reflective_mode(report)
+            
+        except Exception as e:
+            print(f"[diagnostic] REFLECTIVE mode failed: {e}")
+            # Emergency fallback to DEGRADED
+            try:
+                self.state_machine.transition(
+                    SystemState.DEGRADED,
+                    reason=f"REFLECTIVE mode failed: {e}",
+                    actor="diagnostic_engine"
+                )
+            except:
+                pass
+
+    def run_reflective_diagnostic(self) -> Dict[str, Any]:
+        """
+        Run comprehensive system analysis in REFLECTIVE state.
+        Returns detailed diagnostic report.
+        """
+        print("[diagnostic] Running REFLECTIVE diagnostic...")
+        
+        # Run full diagnostic
+        report = self._run_once(trigger="reflective")
+        
+        # Add REFLECTIVE-specific checks
+        report["reflective_checks"] = {
+            "state_machine_health": self._check_state_machine_health(),
+            "baseline_integrity": self._check_baseline_integrity(),
+            "anomaly_summary": self._get_anomaly_summary(),
+        }
+        
+        print(f"[diagnostic] REFLECTIVE diagnostic complete. Health score: {report.get('health_score', 'N/A')}")
+        return report
+
+    def exit_reflective_mode(self, report: Dict[str, Any]) -> None:
+        """
+        Exit REFLECTIVE state to appropriate next state based on diagnostic results.
+        """
+        from core.state_machine import SystemState
+        
+        health_score = report.get("health_score", 0.0)
+        findings = report.get("findings", [])
+        critical_findings = [f for f in findings if f.get("severity") == "critical"]
+        
+        if health_score > 0.9 and not critical_findings:
+            # System healthy
+            next_state = SystemState.OPERATIONAL
+            reason = f"Diagnostics passed (health={health_score:.2f})"
+        elif health_score > 0.7:
+            # System degraded but functional
+            next_state = SystemState.DEGRADED
+            reason = f"Diagnostics found issues (health={health_score:.2f})"
+        else:
+            # System needs recovery
+            next_state = SystemState.RECOVERY
+            reason = f"Critical issues detected (health={health_score:.2f})"
+        
+        print(f"[diagnostic] Exiting REFLECTIVE to {next_state.value}: {reason}")
+        
+        self.state_machine.transition(
+            next_state,
+            reason=reason,
+            actor="diagnostic_engine",
+            meta={"health_score": health_score, "findings_count": len(findings)}
+        )
+
+    def _check_state_machine_health(self) -> Dict[str, Any]:
+        """Check state machine health (transition history, flapping, etc.)"""
+        try:
+            snap = self.state_machine.snapshot()
+            return {
+                "ok": True,
+                "current_state": snap.state,
+                "since_ts": snap.since_ts,
+                "time_in_state": time.time() - snap.since_ts if snap.since_ts else 0,
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def _check_baseline_integrity(self) -> Dict[str, Any]:
+        """Check if baselines are being tracked correctly"""
+        try:
+            baselines = self.baseline_tracker.get_all_baselines(recompute=False)
+            metrics_count = len(baselines.get("metrics", []))
+            return {
+                "ok": metrics_count > 0,
+                "metrics_tracked": metrics_count,
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def _get_anomaly_summary(self) -> Dict[str, Any]:
+        """Get summary of recent anomalies"""
+        if not self.anomaly_detector:
+            return {"ok": False, "reason": "no_detector"}
+        
+        try:
+            anomalies_data = self.anomaly_detector.get_anomalies(window="1h", limit=100)
+            anomalies = anomalies_data.get("anomalies", [])
+            critical = [a for a in anomalies if a.get("severity") == "error"]
+            warnings = [a for a in anomalies if a.get("severity") == "warning"]
+            
+            return {
+                "ok": True,
+                "total": len(anomalies),
+                "critical": len(critical),
+                "warnings": len(warnings),
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e)}

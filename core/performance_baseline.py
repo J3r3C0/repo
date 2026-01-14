@@ -148,6 +148,25 @@ class PerformanceBaselineTracker:
         self.persist(recompute=recompute)
         return True
 
+    def on_state_transition(self, event, prev_snapshot, new_snapshot):
+        """
+        Transition hook: record state transition metrics.
+        Called by state machine after successful transitions.
+        """
+        # Track transition frequency (transitions per hour)
+        self.update("state_transition_rate", 1.0, ts=event.ts)
+        
+        # Track time in each state (state stability)
+        if prev_snapshot and prev_snapshot.since_ts:
+            time_in_state = event.ts - prev_snapshot.since_ts
+            self.update(f"time_in_{prev_snapshot.state.lower()}", time_in_state, ts=event.ts)
+        
+        # Track degraded ratio
+        if new_snapshot.state == "DEGRADED":
+            self.update("degraded_state_entered", 1.0, ts=event.ts)
+        elif prev_snapshot and prev_snapshot.state == "DEGRADED":
+            self.update("degraded_state_exited", 1.0, ts=event.ts)
+
     # ---------------------------
     # Internals
     # ---------------------------

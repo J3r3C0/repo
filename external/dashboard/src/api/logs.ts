@@ -45,7 +45,10 @@ export const getLiveLogsFromJobs = async (): Promise<LogEntry[]> => {
             const payload = job.payload || {};
             if (payload.job_type === 'sheratan_selfloop' || payload.loop_state) {
                 source = 'selfloop';
-            } else if (payload.task?.includes('relay') || payload.action?.includes('relay')) {
+            } else if (
+                (typeof payload.task === 'string' && payload.task.includes('relay')) ||
+                (typeof payload.action === 'string' && payload.action.includes('relay'))
+            ) {
                 source = 'relay';
             }
 

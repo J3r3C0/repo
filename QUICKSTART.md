@@ -1,144 +1,132 @@
-# Sheratan Quick Start Guide (Windows)
+# Sheratan Quick Start
 
-## Dry-Run Mode (Lernen & Beobachten)
-
-### 1. System starten
-```bash
-START_DRYRUN.bat
-```
-
-Das startet:
-- **Core API** auf Port 8001 (Missions, Tasks, Jobs)
-- **Journal Sync API** auf Port 8100 (für Replicas)
-- **Governance**: DRY-RUN (Margins werden nur geloggt, nicht angewendet)
-
-### 2. Test-Job senden
-
-**Option A: Über API**
-```bash
-curl -X POST http://localhost:8001/api/missions/quickstart ^
-  -H "Content-Type: application/json" ^
-  -d "{\"user_id\":\"test_user\",\"goal\":\"Test Settlement Flow\"}"
-```
-
-**Option B: Über mobile_cli.py**
-```bash
-python mobile_cli.py
-# Dann: "create mission" -> "add task" -> "dispatch"
-```
-
-### 3. Logs beobachten
-
-Im **Sheratan Core** Terminal siehst du:
-```
-[DRY-RUN] Settlement for job_abc123: margin=0.1500, provider_share=8.5000
-[bridge] 💰 Settled job abc123: 10.0 TOK (margin: 15.0%)
-```
-
-**Wichtig**: Im Dry-Run werden **keine echten Balances geändert**, nur geloggt!
-
-### 4. Reconciliation prüfen
-
-Nach 10-20 Jobs:
-```bash
-python -m mesh.registry.reconciliation_report ledger_events.jsonl
-```
-
-Zeigt:
-- Total User Costs
-- Total Payouts
-- Operator Revenue
-- Avg. Margin
-
-### 5. Worker Stats checken
-
-```bash
-curl http://localhost:8001/api/mesh/workers | python -m json.tool
-```
-
-Zeigt für jeden Worker:
-- `success_ema` (Erfolgsrate)
-- `latency_ms_ema` (Durchschnittliche Latenz)
-- `consecutive_failures` (Fehler-Counter)
-- `is_offline` (Cooldown-Status)
+**Ziel**: System in 5 Minuten zum Laufen bringen.
 
 ---
 
-## Production Mode (Scharf schalten)
+## 1. System starten
 
-### Wann umschalten?
-Nach **50+ Jobs** im Dry-Run ohne Anomalien:
-- Margins sehen plausibel aus (12-20%)
-- Keine unerwarteten Cooldowns
-- Reconciliation stimmt
+```cmd
+START_COMPLETE_SYSTEM.bat
+```
 
-### Umschalten
-```bash
-# 1. System stoppen
+**Was passiert:**
+- 8 Services starten in separaten Fenstern
+- Dauer: ~60 Sekunden
+- Dashboard öffnet automatisch
+
+---
+
+## 2. Dashboard öffnen
+
+```
+http://localhost:3001
+```
+
+**Erwartung:**
+- ✅ 2 Hosts online (Host-A, Host-B)
+- ✅ Core API verbunden
+- ✅ System State: OPERATIONAL
+
+---
+
+## 3. System testen
+
+### Option A: Über Dashboard
+1. Öffne Dashboard
+2. Klicke "Create Mission"
+3. Fülle Formular aus
+4. Beobachte Job-Ausführung
+
+### Option B: Über API
+```powershell
+# Mission erstellen
+$mission = @{
+    title = "Test Mission"
+    description = "Erste Test-Mission"
+    priority = "normal"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post `
+    -Uri http://localhost:8001/api/missions `
+    -Body $mission `
+    -ContentType "application/json"
+
+# Jobs anzeigen
+Invoke-RestMethod http://localhost:8001/api/jobs
+```
+
+---
+
+## 4. System-Health prüfen
+
+```powershell
+# System State
+Invoke-RestMethod http://localhost:8001/api/system/state
+
+# Alle Services testen
+$ports = @(8001, 9000, 3000, 3001, 8081, 8082)
+foreach ($p in $ports) {
+    try {
+        Invoke-WebRequest "http://localhost:$p" -TimeoutSec 1 -UseBasicParsing | Out-Null
+        Write-Host "✅ Port $p - OK" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Port $p - DOWN" -ForegroundColor Red
+    }
+}
+```
+
+---
+
+## 5. System stoppen
+
+```cmd
 STOP_SHERATAN.bat
-
-# 2. Production starten
-START_PRODUCTION.bat
 ```
 
-**Unterschied**: `GOV_DRY_RUN=0` → Settlements ändern jetzt **echte Balances**!
+Oder: Alle CMD-Fenster schließen.
 
 ---
 
-## Monitoring Commands
-
-### Operator Revenue
-```bash
-python -m mesh.registry.reconciliation_report ledger_events.jsonl
-```
-
-### Journal Integrity
-```bash
-python -m core.journal_cli verify ledger_events.jsonl
-```
-
-### Worker Health
-```bash
-curl http://localhost:8001/api/mesh/workers
-```
-
-### Ledger Balance
-```bash
-curl http://localhost:8001/api/mesh/ledger/test_user
-```
-
----
-
-## Troubleshooting
+## 🚨 Troubleshooting
 
 ### "Port already in use"
-```bash
+```cmd
 STOP_SHERATAN.bat
-# Warte 5 Sekunden, dann neu starten
+timeout /t 5
+START_COMPLETE_SYSTEM.bat
 ```
 
-### "No workers available"
-Worker muss sich erst registrieren. Check:
-```bash
-curl http://localhost:8001/api/mesh/workers
-```
+### "Core API not responding"
+**Lösung**: Warte 60 Sekunden nach Start - Services brauchen Zeit zum Hochfahren.
 
-Wenn leer → Worker-Prozess starten oder manuell registrieren.
+### "Dashboard zeigt keine Hosts"
+**Prüfen**:
+1. Broker läuft: `http://localhost:9000/status`
+2. Hosts laufen: `http://localhost:8081/status`, `http://localhost:8082/status`
+3. Core API Logs: `logs/` Verzeichnis
 
-### "Settlement failed (insufficient balance)"
-User hat nicht genug Guthaben:
-```bash
-# Credit user
-curl -X POST http://localhost:8001/api/mesh/ledger/test_user/credit ^
-  -H "Content-Type: application/json" ^
-  -d "{\"amount\":1000}"
-```
+### "WebRelay errors"
+**Prüfen**:
+1. Chrome läuft (Port 9222)
+2. ChatGPT-Tab ist offen
+3. WebRelay Logs im Terminal
 
 ---
 
-## Next Steps
+## 📖 Weiterführende Dokumentation
 
-1. **Woche 1**: Dry-Run mit 50+ Jobs
-2. **Woche 2**: Production mit echtem Traffic
-3. **Woche 3**: Margin-Tuning basierend auf echten Daten
-4. **Monat 2**: Replica-Node für Monitoring starten
+- **[README.md](README.md)** - System-Übersicht & Doku-Links
+- **[system_overview.md](docs/system_overview.md)** - Alle Ports & API-Endpoints
+- **[PHASE_A_STATE_MACHINE.md](docs/PHASE_A_STATE_MACHINE.md)** - State Machine Details
+
+---
+
+## 🎯 Nächste Schritte
+
+1. ✅ System läuft
+2. ⏳ Erste Mission erstellen
+3. ⏳ Job-Flow beobachten
+4. ⏳ Logs verstehen
+
+**Für Fortgeschrittene**: Siehe [task.md](task.md) für aktuelle TODOs.

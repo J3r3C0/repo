@@ -1,264 +1,137 @@
-# Sheratan Clean Build
+# Sheratan - Autonomous Job Orchestration System
 
-**Version:** 1.0  
-**Date:** 2026-01-10  
-**Status:** Production-Ready (Stable Components)
+**Status**: Production-Ready Core | **Stand**: 2026-01-14
 
----
-
-## Overview
-
-This is a clean, unified build of the Sheratan autonomous execution mesh, combining the best components from two source systems:
-- **C:\projectroot** - Refactored Mesh (Broker, Hosts, Gates, WebRelay, Runtime)
-- **C:\Sheratan\sheratan** - Core API, Worker Loop, React Dashboard
-
-**Focus:** Stable, working system without experimental features.
+Ein autonomes Job-Orchestrierungs-System mit Mission/Task/Job Hierarchie, Offgrid Mesh und LLM-Integration.
 
 ---
 
-## Directory Structure
+## 🚀 Quick Start
 
-```
-C:\sauber_main\
-├── mesh/                  # Mesh-internal components
-│   ├── core/              # Core mesh logic
-│   ├── offgrid/           # Broker + Hosts
-│   └── runtime/           # Runtime zones (inbox, queue, outbox)
-├── external/              # Mesh-external services
-│   ├── webrelay/          # LLM Bridge (ChatGPT/Gemini)
-│   ├── gatekeeper/        # Gate enforcement
-│   ├── auditor/           # Audit service
-│   └── final_decision/    # Post-audit service
-├── core/                  # Core API (FastAPI)
-├── worker/                # Worker loop
-├── dashboard/             # React UI (Vite)
-├── tools/                 # Utility scripts (print_status.py, check_test.py)
-├── scripts/               # Helper scripts (start_chrome.bat, RESET_SYSTEM.ps1)
-├── config/                # Configuration (.env)
-├── docs/                  # Documentation
-├── START.ps1              # Master startup script
-└── STOP_SHERATAN.ps1      # Shutdown script
-```
-
----
-
-## Port Assignments
-
-| Service | Port | URL |
-|---------|------|-----|
-| Core API | 8001 | http://localhost:8001 |
-| WebRelay | 3000 | http://localhost:3000 |
-| Broker | 9000 | http://localhost:9000 |
-| Host-A | 8081 | http://localhost:8081 |
-| Host-B | 8082 | http://localhost:8082 |
-| Dashboard | 3001 | http://localhost:3001 |
-| Chrome Debug | 9222 | - |
-
----
-
-## Quick Start
-
-### 1. Install Dependencies
-
-**Quick Install (Recommended):**
-```powershell
-cd C:\sauber_main
-.\scripts\INSTALL_DEPENDENCIES.ps1
-```
-
-**Manual Install:**
-```powershell
-# Python (Core, Worker, Mesh)
-cd C:\sauber_main\core
-pip install -r requirements.txt
-
-cd C:\sauber_main\worker
-pip install -r requirements.txt
-
-cd C:\sauber_main\mesh\offgrid
-pip install -r requirements.txt
-
-# Node.js (Dashboard, WebRelay)
-cd C:\sauber_main\dashboard
-npm install
-
-cd C:\sauber_main\external\webrelay
-npm install
-npm run build
-```
-
-### 2. Start System
-
-**Using Batch File (Easiest):**
 ```cmd
-START_SHERATAN.bat
+START_COMPLETE_SYSTEM.bat
 ```
 
-**Using PowerShell:**
+Öffne Dashboard: **http://localhost:3001**
+
+**Details**: Siehe [QUICKSTART.md](QUICKSTART.md)
+
+---
+
+## 📊 System-Übersicht
+
+**8 Services** laufen auf festen Ports:
+
+| Service | Port | Status |
+|---------|------|--------|
+| Core API | 8001 | ✅ Stabil |
+| Broker | 9000 | ✅ Stabil |
+| Host-A | 8081 | ✅ Stabil |
+| Host-B | 8082 | ✅ Stabil |
+| WebRelay | 3000 | ✅ Stabil |
+| Dashboard | 3001 | ✅ Stabil |
+| Worker Loop | - | ✅ Stabil |
+| Chrome Debug | 9222 | ✅ Stabil |
+
+---
+
+## 📚 Dokumentation
+
+### Einstieg
+- **[QUICKSTART.md](QUICKSTART.md)** - System starten & erste Schritte
+- **[system_overview.md](docs/system_overview.md)** - Alle Ports, API-Endpoints, IDE-Control
+
+### Architektur
+- **[PHASE_A_STATE_MACHINE.md](docs/PHASE_A_STATE_MACHINE.md)** - State Machine (PAUSED → OPERATIONAL → DEGRADED)
+- **[MESH_CAPABILITIES.md](docs/MESH_CAPABILITIES.md)** - Mesh Network Details
+
+### Status & Planung
+- **[task.md](task.md)** - Aktuelle TODOs & Prioritäten
+- **[SYSTEM_IST_DEFINITION.md](docs/SYSTEM_IST_DEFINITION.md)** - Was läuft aktuell
+- **[PHASE2_DECISION_MATRIX.md](docs/PHASE2_DECISION_MATRIX.md)** - Geplante Optimierungen
+
+---
+
+## 🎯 Was funktioniert
+
+**Production-Ready:**
+- ✅ Mission/Task/Job Management (API)
+- ✅ Dispatcher (automatische Job-Verteilung)
+- ✅ ChainRunner (Spec→Job Erstellung)
+- ✅ State Machine & Self-Diagnostics
+- ✅ WHY-API (Decision Traces)
+
+**Experimentell:**
+- ⚠️ Crypto Sessions (vorbereitet, nicht aktiv)
+- ⚠️ Encrypted Mesh Communication
+
+---
+
+## 📁 Struktur
+
+```
+c:\sauber_main\
+├── core/                   # Core API (FastAPI)
+├── mesh/offgrid/          # Mesh (Broker + Hosts)
+├── worker/                # Worker Loop
+├── external/webrelay/     # LLM Bridge
+├── data/                  # Runtime Data
+├── logs/                  # System Logs
+├── docs/                  # Dokumentation
+├── START_COMPLETE_SYSTEM.bat
+└── STOP_SHERATAN.bat
+```
+
+---
+
+## 🔧 Wichtige Commands
+
+### System-Health prüfen
 ```powershell
-cd C:\sauber_main
-.\scripts\START.ps1
+Invoke-RestMethod http://localhost:8001/api/system/state
 ```
 
-This will start all 10 components in order:
-1. Core API (Port 8001)
-2. Broker (Port 9000)
-3. Host-A (Port 8081)
-4. Host-B (Port 8082)
-5. Chrome (Port 9222)
-6. WebRelay (Port 3000)
-7. Gatekeeper
-8. Auditor
-9. Final Decision
-10. Worker Loop
-11. Dashboard (Port 3001)
+### Logs live ansehen
+```powershell
+Get-Content logs\state_transitions.jsonl -Tail 20 -Wait
+```
 
-### 3. Verify System
+### Mission erstellen
+```powershell
+$m = @{title="Test";description="Test";priority="normal"} | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:8001/api/missions -Body $m -ContentType "application/json"
+```
 
-Open Dashboard: http://localhost:3001
+**Mehr Commands**: Siehe [system_overview.md](docs/system_overview.md)
 
-Check that:
-- ✅ 2 Hosts show as online (Host-A, Host-B)
-- ✅ Core API is responding
-- ✅ WebRelay is connected
+---
 
-### 4. Stop System
+## 🛑 System stoppen
 
-**Using Batch File:**
 ```cmd
 STOP_SHERATAN.bat
 ```
 
-**Using PowerShell:**
-```powershell
-.\scripts\STOP_SHERATAN.ps1
+---
+
+## 🚨 Troubleshooting
+
+**Port bereits belegt:**
+```cmd
+STOP_SHERATAN.bat
+timeout /t 5
+START_COMPLETE_SYSTEM.bat
 ```
 
-### 5. Reset System (Clean Start)
+**Core API antwortet nicht:**  
+Warte 60 Sekunden nach Start - Services brauchen Zeit.
 
-```powershell
-.\scripts\RESET_SYSTEM.ps1
-```
-
-This cleans all job queues, logs, and temporary files.
+**Mehr Hilfe**: Siehe [QUICKSTART.md](QUICKSTART.md#troubleshooting)
 
 ---
 
-## Runtime Zones
+## 📞 Support
 
-The system uses a 3-zone runtime model:
-
-### 📥 Inbox (`mesh/runtime/inbox/`)
-External job proposals enter here.
-
-### ⚙️ Queue (`mesh/runtime/queue/`)
-- **approved/** - Jobs ready for execution
-- **blocked/** - Quarantined jobs (failed gates)
-
-### 📤 Outbox (`mesh/runtime/outbox/`)
-- **results/** - Job results
-- **ledger.jsonl** - Reality Ledger (append-only audit trail)
-
----
-
-## Components
-
-### Mesh-Internal
-
-**Core** - Mesh coordination and gate logic  
-**Offgrid** - Broker (auction) + Hosts (execution)  
-**Runtime** - File-based job queues
-
-### Mesh-External
-
-**WebRelay** - LLM Bridge (Puppeteer-based, connects to ChatGPT/Gemini)  
-**Gatekeeper** - Enforces G0-G4 security gates  
-**Auditor** - LLM2-based audit service  
-**Final Decision** - Post-audit re-gating
-
-### Application Layer
-
-**Core API** - FastAPI service (port 8001)  
-**Worker Loop** - LCP worker (processes jobs)  
-**Dashboard** - React UI (port 3001)
-
----
-
-## Configuration
-
-Edit `config/.env` to change:
-- Port assignments
-- API endpoints
-- Runtime paths
-- LLM settings
-
----
-
-## Troubleshooting
-
-### Services won't start
-1. Check if ports are already in use
-2. Run `.\RESET_SYSTEM.ps1` to clean previous sessions
-3. Check individual terminal windows for error messages
-
-### Dashboard shows no hosts
-1. Verify Broker is running (http://localhost:9000/status)
-2. Verify Hosts are running (http://localhost:8081/announce, http://localhost:8082/announce)
-3. Check Core API logs
-
-### WebRelay errors
-1. Ensure Chrome is running with debug port 9222
-2. Check if ChatGPT/Gemini tabs are open
-3. Verify WebRelay port is 3000 (not 3001)
-
-### Unicode errors in logs
-- All scripts use UTF-8 encoding
-- If errors persist, check Python/Node.js locale settings
-
----
-
-## Documentation
-
-- [SYSTEM_IST_DEFINITION.md](docs/SYSTEM_IST_DEFINITION.md) - **Formal system state definition (verified 2026-01-12)**
-- [SYSTEM_SOLL_DEFINITION.md](docs/SYSTEM_SOLL_DEFINITION.md) - **Normative target state definition**
-- [ABWEICHUNGSMATRIX.md](docs/ABWEICHUNGSMATRIX.md) - **Gap analysis: Current vs. Target state**
-- [PHASE_A_STATE_MACHINE.md](docs/PHASE_A_STATE_MACHINE.md) - **Phase A: State Machine Implementation**
-- [MIGRATION_MAP.md](docs/MIGRATION_MAP.md) - Component migration details
-- [SHERATAN_REFACTORING_PLAN.md](docs/SHERATAN_REFACTORING_PLAN.md) - Future production features
-- [MESH_CAPABILITIES.md](docs/MESH_CAPABILITIES.md) - Mesh capabilities overview
-
----
-
-## Future Features (Phase 2)
-
-See [SHERATAN_REFACTORING_PLAN.md](docs/SHERATAN_REFACTORING_PLAN.md) for planned production features:
-- Idempotency
-- Retry logic
-- Timeout handling
-- Priority queues
-- SQLite storage
-- Host health checks
-- Rate limiting
-- Job dependencies
-
-**Estimated effort:** 13-19 hours
-
----
-
-## Success Criteria
-
-- [x] All services start without errors
-- [ ] Dashboard shows 2 hosts online
-- [ ] Job submission works (inbox → execution → outbox)
-- [ ] Gates function (G0-G4)
-- [ ] Audit pipeline functions
-- [ ] Ledger writes events
-- [ ] No port conflicts
-- [ ] No Unicode errors
-- [ ] Clean terminal output
-
----
-
-**Built:** 2026-01-10  
-**Source Systems:** C:\projectroot + C:\Sheratan\sheratan  
-**Status:** Ready for Testing
+- **Logs**: `logs/`
+- **State**: `runtime/system_state.json`
+- **Data**: `data/`

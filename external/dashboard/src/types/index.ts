@@ -1,5 +1,5 @@
 // Missions & Jobs
-export type MissionStatus = "planned" | "running" | "completed" | "failed";
+export type MissionStatus = "planned" | "running" | "active" | "completed" | "failed";
 export type JobStatus = "queued" | "working" | "done" | "error" | "running" | "completed" | "failed" | "pending";
 export type JobType = "analysis" | "build" | "relay" | "trading" | "mesh" | string;
 

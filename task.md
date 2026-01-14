@@ -1,45 +1,85 @@
-TASK: Stabilize the complete system (sauber_main) with evidence.
+# Sheratan - Aktuelle Aufgaben
 
-Ground Truth:
-- Start script: START_COMPLETE_SYSTEM.bat
-- Core port: 8001
-- Health endpoint: GET /api/system/health
-- E2E job: POST /api/jobs (via chain specs)
+**Stand**: 2026-01-14
 
-## Completed ✅
+---
 
-### Gate 1: Boot & Health
-- [x] System boots successfully
-- [x] Health endpoint returns 200 OK
-- [x] All services active (Core, WebRelay, Broker, Hosts, Dashboard)
+## ✅ Erledigt (Heute)
 
-### Gate 2: Dispatcher Active
-- [x] Dispatcher thread launches
-- [x] Dispatcher loop runs (`is_running=True`)
-- [x] Jobs move from pending → working
-- [x] Error logging implemented
+- [x] Crypto Session auf v0.16-alpha upgraded (Replay-Schutz, Session-IDs)
+- [x] Migration TODOs verifiziert (keine Breaking Changes)
+- [x] Dokumentation konsolidiert (README.md, QUICKSTART.md)
+- [x] system_overview.md erstellt (Ports, APIs, Commands)
 
-### Fixes Applied
-- [x] Added dispatcher error logging (start, loop, crash detection)
-- [x] Fixed orphaned jobs (cleared invalid `depends_on: ['parent']`)
-- [x] Created diagnostic scripts (check_dispatcher, check_dependencies, fix_orphaned_jobs)
+---
 
-## Remaining Issues ⚠️
+## 🎯 Priorität 1 - Stabilität
 
-### Orphaned Jobs
-- **Problem:** Chain specs create jobs with `depends_on: ['parent']` but parent doesn't exist
-- **Workaround:** Run `fix_orphaned_jobs.py` to clear invalid dependencies
-- **Long-term:** Fix chain spec creation logic
+### System-Verifikation
+- [ ] Alle 8 Services testen (Health Checks)
+- [ ] Job-Flow durchlaufen (Mission → Task → Job → Result)
+- [ ] State Machine Transitions testen
+- [ ] Logs auf Fehler prüfen
 
-### Job Completion
-- **Status:** Jobs dispatch to workers but completion not fully verified
-- **Next:** Monitor worker logs for job results
+### Dokumentation
+- [x] README.md aktualisiert
+- [x] QUICKSTART.md aktualisiert
+- [ ] Veraltete Docs archivieren (`docs/archive/`)
 
-## Next Steps
+---
 
-1. [ ] Fix chain spec logic (prevent orphaned jobs)
-2. [ ] Verify full E2E job completion (worker → result)
-3. [ ] Gate 3: Failure/Recovery testing
-4. [ ] Add dispatcher health to `/api/system/health`
-5. [ ] Implement automatic orphaned job cleanup
-.
+## 🔬 Priorität 2 - Testing
+
+### Crypto Sessions (Optional)
+- [ ] Handshake zwischen Host-A und Host-B testen
+- [ ] Encrypted Session erstellen
+- [ ] Replay-Schutz verifizieren
+
+### Performance
+- [ ] Baseline-Metriken sammeln
+- [ ] Anomaly Detection beobachten
+- [ ] Dispatcher-Performance messen
+
+---
+
+## 🚀 Priorität 3 - Features
+
+### Mesh Encryption (Experimentell)
+- [ ] `--noise 1` Flag aktivieren (wenn gewünscht)
+- [ ] Encrypted Sessions im Live-Mesh testen
+- [ ] Performance-Impact messen
+
+### Monitoring
+- [ ] WHY-API nutzen für Decision Analysis
+- [ ] Decision Traces visualisieren
+- [ ] Performance-Dashboards erstellen
+
+---
+
+## 📋 Backlog
+
+- [ ] Burn-In Tests durchführen (siehe `docs/PHASE1_BURN_IN_TEST_PLAN.md`)
+- [ ] Multi-Node Setup testen
+- [ ] Production-Deployment vorbereiten
+- [ ] Phase 2 Features evaluieren (siehe `docs/PHASE2_DECISION_MATRIX.md`)
+
+---
+
+## 🚨 Bekannte Issues
+
+- ⚠️ Crypto Sessions vorbereitet, aber nicht im Live-Mesh getestet
+- ⚠️ Einige Docs in `docs/` sind veraltet (vor 2026-01-14)
+
+---
+
+## 📝 Notizen
+
+**Nächste Session:**
+1. System-Health-Check durchführen
+2. Veraltete Docs archivieren
+3. Entscheiden: Crypto-Sessions aktivieren oder nicht?
+
+**Langfristig:**
+- Monitoring verbessern
+- Performance optimieren
+- Production-Readiness erhöhen

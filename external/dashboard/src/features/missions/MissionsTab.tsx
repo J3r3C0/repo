@@ -30,7 +30,7 @@ export function MissionsTab() {
   }, [missions, selectedMissionId]);
 
   // Statistiken berechnen
-  const activeMissions = missions.filter((m) => m.status === "running").length;
+  const activeMissions = missions.filter((m) => m.status === "active" || m.status === "running").length;
   const completedMissions = missions.filter((m) => m.status === "completed").length;
   const failedMissions = missions.filter((m) => m.status === "failed").length;
 
@@ -45,6 +45,10 @@ export function MissionsTab() {
       return allJobs.filter(j => taskIds.has(j.missionId)); // j.missionId ist task_id!
     })()
     : allJobs;
+
+  // Job-Status-Counts (API liefert "completed" und "failed")
+  const completedJobs = filteredJobs.filter((j) => j.status === "completed").length;
+  const failedJobs = filteredJobs.filter((j) => j.status === "failed").length;
 
   console.log('📊 MissionsTab Debug:', {
     selectedMissionId,

@@ -1,0 +1,26 @@
+{
+    "enabled": true,
+    "enforce_on_api": true,
+    "enforcement_mode": "soft",
+    "allowed_kinds": [
+        "llm_call",
+        "agent_plan",
+        "read_file",
+        "write_file",
+        "walk_tree",
+        "read_file_batch",
+        "NOOP"
+    ],
+    "forbidden_kinds": [
+        "SHELL_EXEC",
+        "POWERSHELL_EXEC",
+        "REGISTRY_EDIT",
+        "DELETE_TREE",
+        "SELF_MODIFY_LOCKCHECK",
+        "EXEC_FROM_OUTPUT"
+    ],
+    "require_provenance": true,
+    "log_all_decisions": true,
+    "max_jobs_per_minute": 60,
+    "max_concurrent_jobs": 10
+}

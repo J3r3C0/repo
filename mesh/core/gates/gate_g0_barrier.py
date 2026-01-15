@@ -37,7 +37,8 @@ def run_g0_quarantine_barrier(job: Dict[str, Any]) -> GateResult:
         return GateResult(report)
 
     # narrative is allowed to continue, but still must pass G1-G4
-    if source_zone in ("narrative", "input", "quarantine"):
+    # api is also allowed (jobs created via Core API)
+    if source_zone in ("narrative", "input", "quarantine", "api"):
         report.status = GateStatus.PASS
         report.next_action = NextAction.ALLOW
         return GateResult(report)

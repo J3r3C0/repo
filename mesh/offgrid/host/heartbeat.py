@@ -22,7 +22,12 @@ class HeartbeatClient:
         self._running = False
 
     async def _loop(self):
-        async with httpx.AsyncClient() as client:
+        token = os.getenv("SHERATAN_HUB_TOKEN", "shared-secret")
+        headers = {
+            "X-Sheratan-Token": token,
+            "Authorization": f"Bearer {token}"
+        }
+        async with httpx.AsyncClient(headers=headers) as client:
             while self._running:
                 try:
                     payload = {
@@ -30,9 +35,12 @@ class HeartbeatClient:
                         "status": "online",
                         "timestamp": datetime.utcnow().isoformat() + "Z"
                     }
-                    response = await client.post(f"{self.core_url}/api/hosts/heartbeat", json=payload, timeout=2.0)
-                    if response.status_code != 200:
-                        print(f"[heartbeat] Error: Core returned {response.status_code}")
+                    # Heartbeat ALWAYS goes to 8787 Control Plane
+                    response = await client.post(f"{self.core_url}/api/hosts/heartbeat", json=payload, timeout=5.0)
+                    if response.status_code == 401 or response.status_code == 403:
+                        print(f"[heartbeat] AUTH_FAIL: Hub rejected token (HTTP {response.status_code})")
+                    elif response.status_code != 200:
+                        print(f"[heartbeat] Error: Hub returned {response.status_code}")
                 except Exception as e:
                     print(f"[heartbeat] Failed: {e}")
                 

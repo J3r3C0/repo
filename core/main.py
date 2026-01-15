@@ -58,6 +58,7 @@ from core.rate_limiter import RateLimiter
 from core.performance_baseline import PerformanceBaselineTracker
 from core.self_diagnostics import SelfDiagnosticEngine, DiagnosticConfig
 from core.anomaly_detector import AnomalyDetector
+from core.gateway_middleware import enforce_gateway, GatewayViolation
 import json
 import os
 import psutil
@@ -419,6 +420,15 @@ try:
 except ImportError:
     # If mesh package is not available, we don't add the handler
     pass
+
+# --- GATEWAY VIOLATION EXCEPTION HANDLING ---
+@app.exception_handler(GatewayViolation)
+async def gateway_violation_handler(request, exc: GatewayViolation):
+    """Handle gateway enforcement violations with detailed gate reports."""
+    return JSONResponse(
+        status_code=403,
+        content=exc.to_dict()
+    )
 # ------------------------------------------
 
 # ------------------------------------------------------------------------------
@@ -574,6 +584,30 @@ def create_job_for_task(task_id: str, job_create: models.JobCreate):
         raise HTTPException(404, "Task not found")
     
     job = models.Job.from_create(task_id, job_create)
+    
+    # --- GATEWAY ENFORCEMENT (G0-G4) ---
+    # Convert job to dict for gate validation
+    job_dict = job.model_dump()
+    
+    try:
+        gate_result = enforce_gateway(job_dict)
+        print(f"[gateway] Job {job.id[:8]}: {gate_result['overall_status']} (allowed={gate_result['allowed']})")
+        
+        # Store gate result in job metadata
+        if not job.meta:
+            job.meta = {}
+        job.meta["gateway_enforcement"] = {
+            "overall_status": gate_result["overall_status"],
+            "enforcement_mode": gate_result["enforcement_mode"],
+            "allowed": gate_result["allowed"],
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+    except GatewayViolation as gv:
+        # Gateway violation will be handled by exception handler
+        # This will return 403 with detailed gate reports
+        raise
+    # --- END GATEWAY ENFORCEMENT ---
+    
     storage.create_job(job)
     return job
 
@@ -1252,6 +1286,33 @@ def get_state_history(limit: int = 50):
         return events
     except Exception as e:
         raise HTTPException(500, f"Error reading state history: {e}")
+
+
+# ------------------------------------------------------------------------------
+# GATEWAY ENDPOINTS
+# ------------------------------------------------------------------------------
+
+@app.get("/api/gateway/config")
+def get_gateway_config(request: Request):
+    """
+    Get gateway configuration and statistics.
+    Restricted to Localhost (127.0.0.1) for security.
+    """
+    # 1. Localhost lockdown
+    client_host = request.client.host if request.client else "unknown"
+    is_local = client_host in ("127.0.0.1", "::1", "localhost")
+    
+    # 2. Token-Auth (optional but recommended for internal services)
+    token = request.headers.get("X-Sheratan-Token") or request.headers.get("Authorization", "").replace("Bearer ", "")
+    expected = os.getenv("SHERATAN_HUB_TOKEN", "shared-secret")
+    has_valid_token = token == expected
+
+    if not (is_local or has_valid_token):
+        print(f"[gateway] UNAUTHORIZED config access attempt from {client_host}")
+        raise HTTPException(status_code=403, detail="Forbidden: Internal config access restricted.")
+
+    from core.gateway_middleware import get_gateway_stats
+    return get_gateway_stats()
 
 
 # ------------------------------------------------------------------------------

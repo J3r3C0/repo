@@ -166,11 +166,13 @@ def init_db():
         )
     """)
     
-    # Register baseline migration if not exists
     cursor.execute("""
         INSERT OR IGNORE INTO schema_migrations (version, applied_at, description)
         VALUES ('baseline_v1', datetime('now'), 'Initial schema with missions, tasks, jobs, chains')
     """)
+
+    # Track A3 Phase 2: Policy Persistence
+    migrate_hosts_policy_fields(cursor)
     
     conn.commit()
     
@@ -181,6 +183,24 @@ def init_db():
     print(f"[database] WAL mode: enabled")
     
     conn.close()
+
+def _column_exists(cursor: sqlite3.Cursor, table: str, col: str) -> bool:
+    cursor.execute(f"PRAGMA table_info({table})")
+    cols = [r[1] for r in cursor.fetchall()]
+    return col in cols
+
+def _add_column_if_missing(cursor: sqlite3.Cursor, table: str, ddl: str, col: str) -> None:
+    if not _column_exists(cursor, table, col):
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+def migrate_hosts_policy_fields(cursor: sqlite3.Cursor) -> None:
+    """Idempotent migration for Track A3 policy fields."""
+    _add_column_if_missing(cursor, "hosts", "policy_state TEXT NOT NULL DEFAULT 'NORMAL'", "policy_state")
+    _add_column_if_missing(cursor, "hosts", "policy_reason TEXT", "policy_reason")
+    _add_column_if_missing(cursor, "hosts", "policy_until_utc TEXT", "policy_until_utc")
+    _add_column_if_missing(cursor, "hosts", "policy_hits INTEGER NOT NULL DEFAULT 0", "policy_hits")
+    _add_column_if_missing(cursor, "hosts", "policy_updated_utc TEXT", "policy_updated_utc")
+    _add_column_if_missing(cursor, "hosts", "policy_by TEXT", "policy_by")
 
 @contextmanager
 def get_db():

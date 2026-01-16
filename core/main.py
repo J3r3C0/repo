@@ -23,7 +23,7 @@ def normalize_trace_state(state):
         s["constraints"] = {}
     return s
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -80,6 +80,24 @@ def _audit_log(event: str, details: dict):
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception as e:
         print(f"[audit] Failed to write audit log: {e}")
+
+def _alert_log(event: str, details: dict):
+    """Standardized Alert Logging for Track A3."""
+    try:
+        alert_file = storage.DATA_DIR / "logs" / "alerts.jsonl"
+        alert_file.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "ts": datetime.utcnow().isoformat() + "Z",
+            "event": event,
+            "details": details
+        }
+        with alert_file.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"[alert] Failed to write alert log: {e}")
+
+from core.policy_engine import PolicyEngine
+policy_engine = PolicyEngine()
 
 rate_limiter = RateLimiter()
 CORE_START_TIME = time.time()
@@ -956,22 +974,47 @@ async def host_heartbeat(payload: dict):
     # 2. Evaluate Attestation (Track A2)
     att_status, events, health_hint = evaluate_attestation(host_record, incoming_att, now_utc_str)
     
+    # 2b. Policy Engine Decision (Track A3 - Phase 2 Persistent)
+    decision = policy_engine.decide(host_record, att_status)
+    
     # 3. Log Audit Events & Metrics
     for ev in events:
         details = ev["data"]
         details["host_id"] = host_id
         _audit_log(ev["event"], details)
         
+    # Policy Enforcement & Alerts (A3 Phase 2)
+    policy_updates = {}
+    if "ALERT" in decision.actions:
+        event_name = f"POLICY_{decision.state}"
+        _alert_log(event_name, {"host_id": host_id, "reason": decision.reason, "attestation": att_status})
+        
+        # Persistent state update
+        policy_updates = {
+            "policy_state": decision.state,
+            "policy_reason": decision.reason,
+            "policy_until_utc": decision.until_utc,
+            "policy_updated_utc": now_utc_str,
+            "policy_hits": (host_record.get("policy_hits") or 0) + (1 if decision.state != "NORMAL" else 0)
+        }
+
+        # Standardized Telemetry
+        metric_name = f"policy_{decision.state.lower()}_1m"
+        record_module_call(source="policy", target=metric_name, duration_ms=0)
+
     # Record metrics via module call (simplified for v2.5.1)
     record_module_call(source="host_heartbeat", target=f"attestation_{att_status.lower()}", duration_ms=0)
     
-    # 4. Final Upsert (Persists both Heartbeat and Attestation results)
-    storage.upsert_host(host_id, {
+    # 4. Final Upsert (Persists both Heartbeat, Attestation and Policy results)
+    upsert_data = {
         "status": status,
-        "health": host_record.get("health", "GREEN"),
+        "health": health_hint or host_record.get("health", "GREEN"),
         "last_seen": now_utc_str,
         "attestation": host_record.get("attestation")
-    })
+    }
+    upsert_data.update(policy_updates)
+    
+    storage.upsert_host(host_id, upsert_data)
     
     print(f"[heartbeat] {host_id} -> status={status}, health={host_record.get('health')}, attestation={att_status}")
     
@@ -1562,6 +1605,31 @@ def list_workers():
     except Exception as e:
         print(f"[mesh] Error listing workers: {e}")
         return []
+
+
+@app.get("/api/admin/policies")
+def list_active_policies(request: Request):
+    """Admin only: List hosts with active policies."""
+    # Localhost security check
+    if request.client.host not in ("127.0.0.1", "localhost"):
+         raise HTTPException(status_code=403, detail="Forbidden: Admin access restricted to localhost")
+    
+    return storage.list_policies()
+
+@app.post("/api/admin/policies/clear")
+def clear_host_policy(request: Request, payload: dict):
+    """Admin only: Manually clear a host's policy."""
+    if request.client.host not in ("127.0.0.1", "localhost"):
+         raise HTTPException(status_code=403, detail="Forbidden: Admin access restricted to localhost")
+    
+    host_id = payload.get("host_id")
+    if not host_id:
+        return {"ok": False, "error": "missing_host_id"}
+    
+    storage.clear_policy(host_id, by="admin_manual")
+    _audit_log("POLICY_CLEARED_MANUAL", {"host_id": host_id, "by": "admin"})
+    
+    return {"ok": True, "message": f"Policy cleared for {host_id}"}
 
 
 if __name__ == "__main__":

@@ -126,9 +126,16 @@ class WebRelayBridge:
         if self.registry:
             for w_id, w_info in self.registry.workers.items():
                 if any(c.kind == kind for c in w_info.capabilities):
-                    # Check if worker is eligible (risk gate placeholder)
-                    is_safe = not w_info.stats.is_offline
+                    # Track A3 Phase 2: Policy/Quarantine Check
+                    host_rec = storage.get_host(w_id)
+                    is_quarantined = host_rec and storage.is_quarantine_active(host_rec)
+                    
+                    is_safe = not w_info.stats.is_offline and not is_quarantined
                     cost = next((c.cost for c in w_info.capabilities if c.kind == kind), 0)
+                    
+                    # If quarantined, we might still include it with high cost or low risk_gate,
+                    # but for Sheratan Signal-Only, we just set risk_gate=False or omit.
+                    # DoD says: "skip / delay". We'll set risk_gate=False to favor healthy nodes.
                     
                     candidates.append({
                         "action_id": str(uuid.uuid4()),

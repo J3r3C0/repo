@@ -10,7 +10,13 @@ import json
 import sqlite3
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+def utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat() + "Z"
+
+def utc_in_minutes(minutes: int) -> str:
+    return (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat() + "Z"
 
 from core import config, models
 from core.database import get_db, init_db
@@ -793,13 +799,19 @@ def get_host(host_id: str) -> Optional[Dict[str, Any]]:
             "health": r['health'],
             "last_seen": r['last_seen'],
             "attestation": json.loads(r['attestation_json']),
-            "metadata": json.loads(r['metadata_json'])
+            "metadata": json.loads(r['metadata_json']),
+            "policy_state": r['policy_state'],
+            "policy_reason": r['policy_reason'],
+            "policy_until_utc": r['policy_until_utc'],
+            "policy_hits": r['policy_hits'],
+            "policy_updated_utc": r['policy_updated_utc'],
+            "policy_by": r['policy_by']
         }
 
 def upsert_host(host_id: str, updates: Dict[str, Any]) -> None:
     """
     Update or insert host record. 
-    'updates' can contain: status, health, last_seen, attestation, metadata.
+    'updates' can contain: status, health, last_seen, attestation, metadata, policy_*
     """
     existing = get_host(host_id)
     if not existing:
@@ -809,22 +821,85 @@ def upsert_host(host_id: str, updates: Dict[str, Any]) -> None:
             "health": "GREEN",
             "last_seen": None,
             "attestation": {},
-            "metadata": {}
+            "metadata": {},
+            "policy_state": "NORMAL",
+            "policy_reason": None,
+            "policy_until_utc": None,
+            "policy_hits": 0,
+            "policy_updated_utc": None,
+            "policy_by": None
         }
     
     # Apply updates
-    if "status" in updates: existing["status"] = updates["status"]
-    if "health" in updates: existing["health"] = updates["health"]
-    if "last_seen" in updates: existing["last_seen"] = updates["last_seen"]
-    if "attestation" in updates: existing["attestation"] = updates["attestation"]
-    if "metadata" in updates: existing["metadata"] = updates["metadata"]
+    for key in ["status", "health", "last_seen", "attestation", "metadata", 
+                "policy_state", "policy_reason", "policy_until_utc", 
+                "policy_hits", "policy_updated_utc", "policy_by"]:
+        if key in updates:
+            existing[key] = updates[key]
 
     with get_db() as conn:
         conn.execute("""
-            INSERT OR REPLACE INTO hosts (id, status, health, last_seen, attestation_json, metadata_json)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO hosts (
+                id, status, health, last_seen, attestation_json, metadata_json,
+                policy_state, policy_reason, policy_until_utc, policy_hits, policy_updated_utc, policy_by
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             host_id, existing["status"], existing["health"], existing["last_seen"],
-            json.dumps(existing["attestation"]), json.dumps(existing["metadata"])
+            json.dumps(existing["attestation"]), json.dumps(existing["metadata"]),
+            existing["policy_state"], existing["policy_reason"], existing["policy_until_utc"],
+            existing["policy_hits"], existing["policy_updated_utc"], existing["policy_by"]
         ))
         conn.commit()
+
+# ------------------------------------------------------------------------------
+# POLICY MANAGEMENT (Track A3)
+# ------------------------------------------------------------------------------
+
+def set_policy(host_id: str, state: str, reason: str, until_utc: Optional[str], by: str = "system") -> None:
+    existing = get_host(host_id)
+    hits = (existing.get("policy_hits") or 0) if existing else 0
+    
+    updates = {
+        "policy_state": state,
+        "policy_reason": reason,
+        "policy_until_utc": until_utc,
+        "policy_hits": hits + 1,
+        "policy_updated_utc": utcnow_iso(),
+        "policy_by": by
+    }
+    upsert_host(host_id, updates)
+
+def clear_policy(host_id: str, by: str = "admin") -> None:
+    updates = {
+        "policy_state": "NORMAL",
+        "policy_reason": None,
+        "policy_until_utc": None,
+        "policy_updated_utc": utcnow_iso(),
+        "policy_by": by
+    }
+    upsert_host(host_id, updates)
+
+def list_policies() -> List[Dict[str, Any]]:
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT id, policy_state, policy_reason, policy_until_utc, policy_hits, policy_updated_utc, policy_by
+            FROM hosts
+            WHERE policy_state != 'NORMAL'
+            ORDER BY policy_updated_utc DESC
+        """).fetchall()
+        return [dict(r) for r in rows]
+
+def is_quarantine_active(host: Dict[str, Any]) -> bool:
+    if host.get("policy_state") != "QUARANTINED":
+        return False
+    until = host.get("policy_until_utc")
+    if not until:
+        return True
+    try:
+        dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt > datetime.now(timezone.utc)
+    except Exception:
+        return True

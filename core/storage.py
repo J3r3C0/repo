@@ -256,6 +256,9 @@ def get_job(job_id: str) -> Optional[models.Job]:
                 priority=r['priority'],
                 timeout_seconds=r['timeout_seconds'],
                 depends_on=json.loads(r['depends_on']),
+                lease_owner=r['lease_owner'],
+                lease_until_utc=r['lease_until_utc'],
+                next_retry_utc=r['next_retry_utc'],
                 created_at=r['created_at'],
                 updated_at=r['updated_at']
             )
@@ -263,16 +266,28 @@ def get_job(job_id: str) -> Optional[models.Job]:
 
 def create_job(job: models.Job) -> models.Job:
     with get_db() as conn:
-        return create_job_with_conn(conn, job)
+        conn.execute("""
+            INSERT INTO jobs (id, task_id, payload, status, result, retry_count, idempotency_key, priority, timeout_seconds, depends_on, lease_owner, lease_until_utc, next_retry_utc, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            job.id, job.task_id, json.dumps(job.payload), job.status, 
+            json.dumps(job.result) if job.result else None, job.retry_count,
+            job.idempotency_key, job.priority, job.timeout_seconds, json.dumps(job.depends_on),
+            job.lease_owner, job.lease_until_utc, job.next_retry_utc,
+            job.created_at, job.updated_at
+        ))
+        conn.commit()
+    return job
 
 def create_job_with_conn(conn, job: models.Job) -> models.Job:
     conn.execute("""
-        INSERT INTO jobs (id, task_id, payload, status, result, retry_count, idempotency_key, priority, timeout_seconds, depends_on, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO jobs (id, task_id, payload, status, result, retry_count, idempotency_key, priority, timeout_seconds, depends_on, lease_owner, lease_until_utc, next_retry_utc, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         job.id, job.task_id, json.dumps(job.payload), job.status, 
         json.dumps(job.result) if job.result else None, job.retry_count,
         job.idempotency_key, job.priority, job.timeout_seconds, json.dumps(job.depends_on),
+        job.lease_owner, job.lease_until_utc, job.next_retry_utc,
         job.created_at, job.updated_at
     ))
     conn.commit()
@@ -281,13 +296,18 @@ def create_job_with_conn(conn, job: models.Job) -> models.Job:
 def update_job(job: models.Job) -> None:
     with get_db() as conn:
         conn.execute("""
-            INSERT OR REPLACE INTO jobs (id, task_id, payload, status, result, retry_count, idempotency_key, priority, timeout_seconds, depends_on, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            UPDATE jobs SET 
+                task_id=?, payload=?, status=?, result=?, retry_count=?, 
+                idempotency_key=?, priority=?, timeout_seconds=?, depends_on=?, 
+                lease_owner=?, lease_until_utc=?, next_retry_utc=?, 
+                updated_at=?
+            WHERE id=?
         """, (
-            job.id, job.task_id, json.dumps(job.payload), job.status, 
+            job.task_id, json.dumps(job.payload), job.status, 
             json.dumps(job.result) if job.result else None, job.retry_count,
             job.idempotency_key, job.priority, job.timeout_seconds, json.dumps(job.depends_on),
-            job.created_at, job.updated_at
+            job.lease_owner, job.lease_until_utc, job.next_retry_utc,
+            utcnow_iso(), job.id
         ))
         conn.commit()
     
@@ -353,13 +373,75 @@ def update_rate_limit_config(source: str, max_jobs_per_minute: int, max_concurre
         conn.commit()
 
 def count_running_jobs_by_source(source: str) -> int:
-    # Note: In our current simple setup, we might need to join with missions/tasks to find 'source'
-    # For now, let's assume 'source' is passed as metadata or we filter by something else.
-    # Alternatively, we can just count all 'working/running' jobs if there's only one source.
-    # For a real multi-source rate limiter, we'd need 'source' on the Job or Task.
     with get_db() as conn:
         r = conn.execute("SELECT COUNT(*) FROM jobs WHERE status IN ('working', 'running')").fetchone()
         return r[0]
+
+def count_pending_jobs() -> int:
+    with get_db() as conn:
+        r = conn.execute("SELECT COUNT(*) FROM jobs WHERE status = 'pending'").fetchone()
+        return r[0]
+
+def count_inflight_jobs() -> int:
+    with get_db() as conn:
+        r = conn.execute("SELECT COUNT(*) FROM jobs WHERE status IN ('working', 'running')").fetchone()
+        return r[0]
+
+def count_ready_jobs(now_iso: str) -> int:
+    """Pending jobs that have no next_retry_utc or next_retry_utc <= now."""
+    with get_db() as conn:
+        r = conn.execute("""
+            SELECT COUNT(*) FROM jobs 
+            WHERE status = 'pending' 
+              AND (next_retry_utc IS NULL OR next_retry_utc <= ?)
+        """, (now_iso,)).fetchone()
+        return r[0]
+
+def lease_next_job(worker_id: str, lease_sec: int) -> Optional[models.Job]:
+    """Atomically claim the next ready job."""
+    now_iso = utcnow_iso()
+    lease_until = (datetime.now(timezone.utc) + timedelta(seconds=lease_sec)).isoformat() + "Z"
+    
+    with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            # Find candidate: pending AND (retry-time reached)
+            row = conn.execute("""
+                SELECT id FROM jobs 
+                WHERE status = 'pending'
+                  AND (next_retry_utc IS NULL OR next_retry_utc <= ?)
+                ORDER BY created_at ASC
+                LIMIT 1
+            """, (now_iso,)).fetchone()
+            
+            if not row:
+                conn.execute("COMMIT")
+                return None
+            
+            job_id = row[0]
+            conn.execute("""
+                UPDATE jobs 
+                SET status = 'working', lease_owner = ?, lease_until_utc = ?, updated_at = ?
+                WHERE id = ?
+            """, (worker_id, lease_until, now_iso, job_id))
+            conn.commit()
+            return get_job(job_id)
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+def reap_expired_leases() -> int:
+    """Return expired working/running jobs to pending."""
+    now_iso = utcnow_iso()
+    with get_db() as conn:
+        cursor = conn.execute("""
+            UPDATE jobs 
+            SET status = 'pending', lease_owner = NULL, lease_until_utc = NULL, updated_at = ?
+            WHERE status IN ('working', 'running') AND lease_until_utc < ?
+        """, (now_iso, now_iso))
+        count = cursor.rowcount
+        conn.commit()
+        return count
 
 # ------------------------------------------------------------------------------
 # PHASE 10.1: CHAIN CONTEXT & SPECS
@@ -805,13 +887,15 @@ def get_host(host_id: str) -> Optional[Dict[str, Any]]:
             "policy_until_utc": r['policy_until_utc'],
             "policy_hits": r['policy_hits'],
             "policy_updated_utc": r['policy_updated_utc'],
-            "policy_by": r['policy_by']
+            "policy_by": r['policy_by'],
+            "public_key": r['public_key'],
+            "key_first_seen_utc": r['key_first_seen_utc']
         }
 
 def upsert_host(host_id: str, updates: Dict[str, Any]) -> None:
     """
     Update or insert host record. 
-    'updates' can contain: status, health, last_seen, attestation, metadata, policy_*
+    'updates' can contain: status, health, last_seen, attestation, metadata, policy_*, public_key, key_first_seen_utc
     """
     existing = get_host(host_id)
     if not existing:
@@ -827,13 +911,16 @@ def upsert_host(host_id: str, updates: Dict[str, Any]) -> None:
             "policy_until_utc": None,
             "policy_hits": 0,
             "policy_updated_utc": None,
-            "policy_by": None
+            "policy_by": None,
+            "public_key": None,
+            "key_first_seen_utc": None
         }
     
     # Apply updates
     for key in ["status", "health", "last_seen", "attestation", "metadata", 
                 "policy_state", "policy_reason", "policy_until_utc", 
-                "policy_hits", "policy_updated_utc", "policy_by"]:
+                "policy_hits", "policy_updated_utc", "policy_by",
+                "public_key", "key_first_seen_utc"]:
         if key in updates:
             existing[key] = updates[key]
 
@@ -841,14 +928,16 @@ def upsert_host(host_id: str, updates: Dict[str, Any]) -> None:
         conn.execute("""
             INSERT OR REPLACE INTO hosts (
                 id, status, health, last_seen, attestation_json, metadata_json,
-                policy_state, policy_reason, policy_until_utc, policy_hits, policy_updated_utc, policy_by
+                policy_state, policy_reason, policy_until_utc, policy_hits, policy_updated_utc, policy_by,
+                public_key, key_first_seen_utc
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             host_id, existing["status"], existing["health"], existing["last_seen"],
             json.dumps(existing["attestation"]), json.dumps(existing["metadata"]),
-            existing["policy_state"], existing["policy_reason"], existing["policy_until_utc"],
-            existing["policy_hits"], existing["policy_updated_utc"], existing["policy_by"]
+            existing["policy_state"], existing["policy_reason"], existing.get("policy_until_utc"),
+            existing["policy_hits"], existing["policy_updated_utc"], existing["policy_by"],
+            existing["public_key"], existing["key_first_seen_utc"]
         ))
         conn.commit()
 

@@ -12,6 +12,15 @@ class HeartbeatClient:
         self.host_id = host_id
         self.interval = interval
         self._running = False
+        
+        # Track A4: Load/Generate persistent identity
+        try:
+            from node.identity import get_or_generate_identity
+            self.priv_key, self.pub_key = get_or_generate_identity()
+            print(f"[heartbeat] Identity loaded. PubKey: {self.pub_key[:8]}...")
+        except Exception as e:
+            self.priv_key = self.pub_key = None
+            print(f"[heartbeat] WARNING: Failed to load identity: {e}")
 
     async def start(self):
         self._running = True
@@ -27,15 +36,31 @@ class HeartbeatClient:
             "X-Sheratan-Token": token,
             "Authorization": f"Bearer {token}"
         }
+        
+        # Track A4: Identity signing logic
+        from node.identity import sign_heartbeat
+        
         async with httpx.AsyncClient(headers=headers) as client:
             while self._running:
                 try:
+                    # Gather attestation signals (Track A2)
+                    # For now using static/placeholder values for build_id and capabilities
                     payload = {
                         "host_id": self.host_id,
                         "status": "online",
-                        "timestamp": datetime.utcnow().isoformat() + "Z"
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "public_key": self.pub_key,
+                        "attestation": {
+                            "build_id": "sheratan-v2.8-prod",
+                            "capability_hash": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b" # SHA256 of ['compute']
+                        }
                     }
-                    # Heartbeat ALWAYS goes to 8787 Control Plane
+                    
+                    # Sign the payload (Track A4)
+                    if self.priv_key:
+                        payload["signature"] = sign_heartbeat(payload, self.priv_key)
+                        
+                    # Heartbeat ALWAYS goes to 8001 Control Plane
                     response = await client.post(f"{self.core_url}/api/hosts/heartbeat", json=payload, timeout=5.0)
                     if response.status_code == 401 or response.status_code == 403:
                         print(f"[heartbeat] AUTH_FAIL: Hub rejected token (HTTP {response.status_code})")

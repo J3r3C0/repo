@@ -16,7 +16,11 @@
 
 | Port | Service | Purpose | Health Check |
 |------|---------|---------|--------------|
-| **8001** | **Core API** | Mission/Task/Job orchestration, State Machine, Dispatcher | `GET /api/system/state` |
+| **8001** | **Core API** | Mission/Task/Job orchestration, State Machine, Dispatcher<br>- **Node Attestation (A2/A3)**: Hardens worker security by tracking attestation signals (build_id, capability_hash) with soft enforcement (health YELLOW + throttling).
+- **Node Identity (A4)**: Implements Ed25519 cryptographic identity using TOFU (Trust On First Use) pinning. Prevents host_id spoofing by requiring signed heartbeats.
+ [!NOTE]
+ Identity currently operates in **Soft-Mode**: invalid or missing signatures generate alerts (`IDENTITY_INVALID`) and set health to `YELLOW` but do not block heartbeats.
+<br>    - **Admin Control**: Restricted `localhost` endpoints allow listing and manual clearance of policies. | `GET /api/system/state` |
 | **9000** | **Broker** | Mesh job auction & routing | `GET /health` |
 | **3000** | **WebRelay** | LLM bridge (Chrome CDP → Core) | `GET /health` |
 | **9222** | **Chrome Debug** | CDP endpoint for WebRelay | Chrome DevTools Protocol |
@@ -101,6 +105,46 @@ GET /api/diagnostics/status          # Self-diagnostic status
 GET /api/diagnostics/anomalies       # Recent anomalies
 GET /api/metrics/baseline            # Performance baselines
 ```
+
+---
+
+## Track A4: Node Identity Specification (v2.8)
+
+### 1. TOFU State Machine
+The Hub implements **Trust On First Use (TOFU)** for host public keys.
+
+| Current DB Key | Incoming Key | Verification Result | Final Status | Action |
+|----------------|--------------|---------------------|--------------|--------|
+| `null` | `K1` | N/A | `VALID` | **Pin `K1`** to host_id |
+| `K1` | `K1` | Valid Signal | `VALID` | OK |
+| `K1` | `K2` | Valid Signal (for `K2`) | `KEY_MISMATCH` | ALERT + Policy `SPOOF_SUSPECT` |
+| `K1` | `K1` | Invalid Signal | `INVALID_SIGNATURE` | ALERT + Policy `DRIFT` |
+| `K1` | `null` | N/A | `MISSING_IDENTITY` | ALERT + Policy `DRIFT` |
+
+### 2. Canonical Signing Contract
+To ensure deterministic signatures, the payload must be transformed into a **Canonical JSON** string before signing/verifying.
+
+- **Signed Fields**: All top-level fields in the heartbeat payload **except** the `signature` field.
+- **Canonical Rules**:
+  - Keys MUST be sorted alphabetically.
+  - No extra whitespace (separators: `',', ':'`).
+  - Encoding: `utf-8`.
+- **Implementation (Python)**:
+  ```python
+  content = {k: v for k, v in payload.items() if k != "signature"}
+  canonical_json = json.dumps(content, sort_keys=True, separators=(',', ':'))
+  # Sign(canonical_json.encode('utf-8'))
+  ```
+
+### 3. Cross-Track Policy Mapping
+Identity failures automatically trigger A3 Policy enforcement:
+
+| Identity Status | Policy State | Enforcement |
+|-----------------|--------------|-------------|
+| `VALID` | `NORMAL` | None |
+| `KEY_MISMATCH` | `QUARANTINED` | **Throttle** (MCTS Defer) |
+| `INVALID_SIGNATURE` | `WARN` | Admin Alert |
+| `MISSING_IDENTITY` | `WARN` | Admin Alert (Only if key was pinned) |
 
 ---
 

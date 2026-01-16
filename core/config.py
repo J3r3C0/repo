@@ -41,3 +41,11 @@ class MeshConfig:
         if s <= 0:
             return (0.45, 0.40, 0.15)
         return (cls.WEIGHT_COST/s, cls.WEIGHT_REL/s, cls.WEIGHT_LAT/s)
+
+class RobustnessConfig:
+    MAX_QUEUE_DEPTH = _i("SHERATAN_MAX_QUEUE_DEPTH", 1000)
+    MAX_INFLIGHT = _i("SHERATAN_MAX_INFLIGHT", 100)
+    LEASE_TIMEOUT_SEC = _i("SHERATAN_LEASE_TIMEOUT_SEC", 300)
+    RETRY_MAX_ATTEMPTS = _i("SHERATAN_RETRY_MAX_ATTEMPTS", 5)
+    RETRY_BASE_DELAY_MS = _i("SHERATAN_RETRY_BASE_DELAY_MS", 500)
+    BACKPRESSURE_MODE = os.getenv("SHERATAN_BACKPRESSURE_MODE", "defer").lower()

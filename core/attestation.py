@@ -4,6 +4,26 @@ import hashlib
 import time
 import os
 from typing import Any, Dict, List, Optional, Tuple
+import nacl.signing
+import nacl.encoding
+import nacl.exceptions
+
+def verify_signature(payload: Dict[str, Any], public_key_hex: str, signature_hex: str) -> bool:
+    """
+    Verify Ed25519 signature over canonical JSON of the payload.
+    'signature' field is excluded from the signed content.
+    """
+    try:
+        # Canonical JSON (sorted keys, no spaces)
+        # We work on a copy to avoid mutating the original payload
+        content = {k: v for k, v in payload.items() if k != "signature"}
+        canonical_json = json.dumps(content, sort_keys=True, separators=(',', ':'))
+        
+        verify_key = nacl.signing.VerifyKey(public_key_hex, encoder=nacl.encoding.HexEncoder)
+        verify_key.verify(canonical_json.encode('utf-8'), nacl.encoding.HexEncoder.decode(signature_hex))
+        return True
+    except (nacl.exceptions.BadSignatureError, Exception) as e:
+        return False
 
 def compute_capability_hash(caps: List[str]) -> str:
     """Stable SHA256 over sorted capability list."""

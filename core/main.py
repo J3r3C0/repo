@@ -59,7 +59,8 @@ from core.performance_baseline import PerformanceBaselineTracker
 from core.self_diagnostics import SelfDiagnosticEngine, DiagnosticConfig
 from core.anomaly_detector import AnomalyDetector
 from core.gateway_middleware import enforce_gateway, GatewayViolation
-from core.attestation import evaluate_attestation
+from core.attestation import evaluate_attestation, verify_signature
+from core.config import RobustnessConfig
 import json
 import os
 import psutil
@@ -156,10 +157,26 @@ class Dispatcher:
         return bool(getattr(self, "_running", False)) and t is not None and t.is_alive()
 
     def _dispatch_step(self):
+        # 0. Reap expired leases BEFORE dispatching to free up capacity
+        reaped = storage.reap_expired_leases()
+        if reaped > 0:
+             print(f"[dispatcher] Reaped {reaped} expired leases before dispatch.")
+
         # 1. Get Pending Jobs
         all_jobs = storage.list_jobs()
         pending = [j for j in all_jobs if j.status == "pending"]
         if not pending:
+            return
+
+        # 1.5 Backpressure Gate (Inflight)
+        inflight_count = storage.count_inflight_jobs()
+        if inflight_count >= RobustnessConfig.MAX_INFLIGHT:
+            print(f"[dispatcher] ⚠ Inflight saturated ({inflight_count}/{RobustnessConfig.MAX_INFLIGHT}). Deferring dispatch.")
+            # Rate limit audit events to avoid spam
+            now = time.time()
+            if not hasattr(self, "_last_saturated_audit") or now - self._last_saturated_audit > 10:
+                _audit_log("BACKPRESSURE_INFLIGHT_SATURATED", {"inflight": inflight_count, "max": RobustnessConfig.MAX_INFLIGHT})
+                self._last_saturated_audit = now
             return
         
         print(f"[dispatcher] _dispatch_step: {len(pending)} pending jobs found")
@@ -267,15 +284,28 @@ class Dispatcher:
             synced = self.bridge.try_sync_result(job.id)
             if synced:
                 if synced.status == "failed":
-                    # Retry logic handled here
-                    max_retries = 3
+                    # --- STANDARDIZED RETRY POLICY (B1) ---
+                    max_retries = RobustnessConfig.RETRY_MAX_ATTEMPTS
                     if synced.retry_count < max_retries:
                         synced.retry_count += 1
                         synced.status = "pending"
+                        
+                        # Exponential Backoff: base * (2 ^ (attempts-1))
+                        # e.g. 500ms, 1000ms, 2000ms, 4000ms, 8000ms
+                        delay_ms = RobustnessConfig.RETRY_BASE_DELAY_MS * (2 ** (synced.retry_count - 1))
+                        from datetime import timedelta
+                        next_retry = datetime.utcnow() + timedelta(milliseconds=delay_ms)
+                        synced.next_retry_utc = next_retry.isoformat() + "Z"
+                        
                         synced.updated_at = datetime.utcnow().isoformat() + "Z"
                         storage.update_job(synced)
-                        print(f"[dispatcher] ↺ Job {job.id[:8]} failed. Queued for retry ({synced.retry_count}/{max_retries})")
+                        
+                        _audit_log("RETRY_SCHEDULED", {"job_id": synced.id, "attempts": synced.retry_count, "next_retry": synced.next_retry_utc})
+                        print(f"[dispatcher] ↺ Job {job.id[:8]} failed. Scheduled for retry {synced.retry_count}/{max_retries} at {synced.next_retry_utc}")
                         continue
+                    else:
+                        _audit_log("RETRY_EXHAUSTED", {"job_id": synced.id, "attempts": synced.retry_count})
+                        print(f"[dispatcher] ❌ Job {job.id[:8]} failed after {max_retries} attempts.")
                 
                 # Final result (success or max failure)
                 print(f"[dispatcher] ✓ Job {job.id[:8]} finished with status: {synced.status}")
@@ -323,6 +353,11 @@ async def lifespan(app: FastAPI):
     print("[database] Initializing schema...")
     init_db()
     print("[database] Schema initialization complete ✅")
+    
+    # 0.1 Reap expired leases (Safety cleanup)
+    reaped = storage.reap_expired_leases()
+    if reaped > 0:
+        print(f"[storage] Reaped {reaped} expired leases at startup.")
     
     # 1. Initialize State Machine
     state_machine.load_or_init()
@@ -616,6 +651,13 @@ def create_job_for_task(task_id: str, job_create: models.JobCreate):
     t = storage.get_task(task_id)
     if t is None:
         raise HTTPException(404, "Task not found")
+
+    # --- BACKPRESSURE GATE (Queue Depth) ---
+    pending_count = storage.count_pending_jobs()
+    if pending_count >= RobustnessConfig.MAX_QUEUE_DEPTH:
+        _audit_log("BACKPRESSURE_QUEUE_LIMIT", {"queue_depth": pending_count, "max": RobustnessConfig.MAX_QUEUE_DEPTH})
+        # Note: Brief suggests 429 for submit
+        raise HTTPException(status_code=429, detail={"ok": False, "error": "backpressure", "queue_depth": pending_count, "max": RobustnessConfig.MAX_QUEUE_DEPTH})
     
     job = models.Job.from_create(task_id, job_create)
     
@@ -971,11 +1013,64 @@ async def host_heartbeat(payload: dict):
     # 1. Load existing host record
     host_record = storage.get_host(host_id) or {"node_id": host_id, "health": "GREEN", "attestation": {}}
     
+    # 1. Identity Verification (Track A4 - Ed25519 TOFU)
+    incoming_sig = payload.get("signature")
+    incoming_pubkey = payload.get("public_key")
+    
+    stored_pubkey = host_record.get("public_key")
+    identity_status = "VALID" # Default for legacy/no-identity-yet
+    
+    if incoming_pubkey:
+        if not stored_pubkey:
+            # TOFU: Pin the key
+            print(f"[identity] TOFU: Pinning new key for {host_id}")
+            storage.upsert_host(host_id, {
+                "public_key": incoming_pubkey,
+                "key_first_seen_utc": now_utc_str
+            })
+            # Re-fetch to ensure host_record has the key for subsequent logic
+            host_record = storage.get_host(host_id)
+            stored_pubkey = incoming_pubkey
+        
+        if incoming_sig:
+            # First try the pinned key
+            if verify_signature(payload, stored_pubkey, incoming_sig):
+                if incoming_pubkey and incoming_pubkey != stored_pubkey:
+                    identity_status = "KEY_MISMATCH"
+                else:
+                    identity_status = "VALID"
+            else:
+                # If pinned key fails, check if signature is valid for incoming key anyway
+                if incoming_pubkey and verify_signature(payload, incoming_pubkey, incoming_sig):
+                    identity_status = "KEY_MISMATCH"
+                else:
+                    identity_status = "INVALID_SIGNATURE"
+        else:
+            identity_status = "MISSING_SIGNATURE"
+    elif stored_pubkey:
+        identity_status = "MISSING_IDENTITY"
+
+    # Soft-Mode Enforcement
+    if identity_status != "VALID":
+        _alert_log(f"IDENTITY_{identity_status}", {"host_id": host_id, "incoming_key": incoming_pubkey})
+        health_hint = "YELLOW"
+        # In Soft-Mode, we update health but do NOT block the heartbeat execution.
+
     # 2. Evaluate Attestation (Track A2)
-    att_status, events, health_hint = evaluate_attestation(host_record, incoming_att, now_utc_str)
+    att_status, events, att_health = evaluate_attestation(host_record, incoming_att, now_utc_str)
+    if att_health == "YELLOW": health_hint = "YELLOW"
     
     # 2b. Policy Engine Decision (Track A3 - Phase 2 Persistent)
-    decision = policy_engine.decide(host_record, att_status)
+    # Track A4: Map Identity Status to Policy
+    effective_att_status = att_status
+    if identity_status == "KEY_MISMATCH":
+        effective_att_status = "SPOOF_SUSPECT"
+    elif identity_status in ("INVALID_SIGNATURE", "MISSING_SIGNATURE", "MISSING_IDENTITY") and identity_status != "VALID":
+        # Missing/Invalid results in at least DRIFT/WARN
+        if effective_att_status == "OK":
+            effective_att_status = "DRIFT"
+
+    decision = policy_engine.decide(host_record, effective_att_status)
     
     # 3. Log Audit Events & Metrics
     for ev in events:
@@ -1214,10 +1309,20 @@ async def get_system_health():
 def status():
     snap = state_machine.snapshot()
     return {
-        "status": "ok",
-        "missions": len(storage.list_missions()),
-        "system_state": snap.state,
-        "state_since": snap.since_ts
+        "status": "operational",
+        "uptime_sec": int(time.time() - CORE_START_TIME),
+        "memory": dict(psutil.virtual_memory()._asdict()),
+        "cpu_percent": psutil.cpu_percent(),
+        "storage": {
+            "queue_depth": storage.count_pending_jobs(),
+            "inflight": storage.count_inflight_jobs(),
+            "ready_to_dispatch": storage.count_ready_jobs(datetime.utcnow().isoformat() + "Z")
+        },
+        "config": {
+            "max_queue": RobustnessConfig.MAX_QUEUE_DEPTH,
+            "max_inflight": RobustnessConfig.MAX_INFLIGHT,
+            "backpressure_mode": RobustnessConfig.BACKPRESSURE_MODE
+        }
     }
 
 

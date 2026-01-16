@@ -174,6 +174,9 @@ def init_db():
     # Track A3 Phase 2: Policy Persistence
     migrate_hosts_policy_fields(cursor)
     
+    # Track B1: Data-Plane Robustness (Lease & Retry)
+    migrate_jobs_robustness_fields(cursor)
+    
     conn.commit()
     
     # Log DB info for debugging
@@ -201,6 +204,16 @@ def migrate_hosts_policy_fields(cursor: sqlite3.Cursor) -> None:
     _add_column_if_missing(cursor, "hosts", "policy_hits INTEGER NOT NULL DEFAULT 0", "policy_hits")
     _add_column_if_missing(cursor, "hosts", "policy_updated_utc TEXT", "policy_updated_utc")
     _add_column_if_missing(cursor, "hosts", "policy_by TEXT", "policy_by")
+    
+    # Track A4: Node Identity (Ed25519)
+    _add_column_if_missing(cursor, "hosts", "public_key TEXT", "public_key")
+    _add_column_if_missing(cursor, "hosts", "key_first_seen_utc TEXT", "key_first_seen_utc")
+
+def migrate_jobs_robustness_fields(cursor: sqlite3.Cursor) -> None:
+    """Idempotent migration for Track B1 robustness fields on jobs table."""
+    _add_column_if_missing(cursor, "jobs", "lease_owner TEXT", "lease_owner")
+    _add_column_if_missing(cursor, "jobs", "lease_until_utc TEXT", "lease_until_utc")
+    _add_column_if_missing(cursor, "jobs", "next_retry_utc TEXT", "next_retry_utc")
 
 @contextmanager
 def get_db():

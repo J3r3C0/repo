@@ -166,6 +166,9 @@ class Job(BaseModel):
     priority: str = "normal"  # normal, high, critical
     timeout_seconds: int = 300
     depends_on: List[str] = []
+    lease_owner: Optional[str] = None
+    lease_until_utc: Optional[str] = None
+    next_retry_utc: Optional[str] = None
     created_at: str
     updated_at: str
 

@@ -16,10 +16,7 @@
 
 | Port | Service | Purpose | Health Check |
 |------|---------|---------|--------------|
-| **8001** | **Core API** | Mission/Task/Job orchestration, State Machine, Dispatcher<br>- **Node Attestation (A2/A3)**: Hardens worker security by tracking attestation signals (build_id, capability_hash) with soft enforcement (health YELLOW + throttling).
-- **Node Identity (A4)**: Implements Ed25519 cryptographic identity using TOFU (Trust On First Use) pinning. Prevents host_id spoofing by requiring signed heartbeats.
- [!NOTE]
- Identity currently operates in **Soft-Mode**: invalid or missing signatures generate alerts (`IDENTITY_INVALID`) and set health to `YELLOW` but do not block heartbeats.
+| **8001** | **Core API** | Mission/Task/Job orchestration, State Machine, Dispatcher<br>- **Node Attestation (A2/A3)**: Hardens worker security by tracking attestation signals (build_id, capability_hash) with soft enforcement (health YELLOW + throttling).<br>- **Node Identity (A4)**: Implements Ed25519 cryptographic identity using TOFU (Trust On First Use) pinning. Prevents host_id spoofing by requiring signed heartbeats.<br>- **Robustness (B1)**: Data-plane protection via Backpressure Gates (Queue Depth + Inflight limits), DB-native Leases, and Standardized Retries with backoff.
 <br>    - **Admin Control**: Restricted `localhost` endpoints allow listing and manual clearance of policies. | `GET /api/system/state` |
 | **9000** | **Broker** | Mesh job auction & routing | `GET /health` |
 | **3000** | **WebRelay** | LLM bridge (Chrome CDP → Core) | `GET /health` |

@@ -1,0 +1,157 @@
+{
+  "baselines": {
+    "avg_job_latency_ms": {
+      "1h": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      },
+      "24h": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      },
+      "7d": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      }
+    },
+    "job_success_rate": {
+      "1h": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      },
+      "24h": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      },
+      "7d": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      }
+    },
+    "llm_call_success_rate": {
+      "1h": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      },
+      "24h": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      },
+      "7d": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      }
+    },
+    "state_transition_rate": {
+      "1h": {
+        "count": 1,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "stddev": 0.0
+      },
+      "24h": {
+        "count": 1,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "stddev": 0.0
+      },
+      "7d": {
+        "count": 1,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "stddev": 0.0
+      }
+    },
+    "worker_availability": {
+      "1h": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      },
+      "24h": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      },
+      "7d": {
+        "count": 0,
+        "last_updated": "2026-01-16T07:24:07Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      }
+    }
+  },
+  "metrics": [
+    "job_success_rate",
+    "avg_job_latency_ms",
+    "state_transition_rate",
+    "llm_call_success_rate",
+    "worker_availability"
+  ],
+  "schema_version": "performance_baselines_v1",
+  "timestamp": "2026-01-16T07:24:07Z",
+  "windows": [
+    {
+      "key": "1h",
+      "seconds": 3600
+    },
+    {
+      "key": "24h",
+      "seconds": 86400
+    },
+    {
+      "key": "7d",
+      "seconds": 604800
+    }
+  ]
+}

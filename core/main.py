@@ -61,6 +61,9 @@ from core.anomaly_detector import AnomalyDetector
 from core.gateway_middleware import enforce_gateway, GatewayViolation
 from core.attestation import evaluate_attestation, verify_signature
 from core.config import RobustnessConfig
+from core import storage, models, idempotency, result_integrity
+from core.idempotency import evaluate_idempotency, IdempotencyDecision, build_idempotency_conflict_detail
+from core.result_integrity import verify_or_migrate_hash, IntegrityError, compute_result_hash
 import json
 import os
 import psutil
@@ -102,6 +105,14 @@ policy_engine = PolicyEngine()
 
 rate_limiter = RateLimiter()
 CORE_START_TIME = time.time()
+
+# --- Track B2: Idempotency Metrics (In-Memory) ---
+# In-memory counters for performance visibility
+IDEMPOTENT_HITS_COUNTER = 0
+IDEMPOTENCY_COLLISIONS_COUNTER = 0
+INTEGRITY_FAILURES_COUNTER = 0
+HASH_WRITES_COUNTER = 0
+HASH_MIGRATIONS_COUNTER = 0
 
 class Dispatcher:
     """Central dispatcher for Priority Queuing and Rate Limiting."""
@@ -181,22 +192,12 @@ class Dispatcher:
         
         print(f"[dispatcher] _dispatch_step: {len(pending)} pending jobs found")
 
-        # 2. Idempotency / Deduplication Check
+        # 2. Get completed job IDs for dependency checking
         completed_ids = {j.id for j in all_jobs if j.status == "completed"}
-        completed_idempotency_keys = {j.idempotency_key for j in all_jobs if j.status == "completed" and j.idempotency_key}
-        
-        # 3. Filter Dependencies & Deduplicate
+
+        # 3. Filter Dependencies
         ready = []
         for j in pending:
-            # Deduplicate
-            if j.idempotency_key and j.idempotency_key in completed_idempotency_keys:
-                print(f"[dispatcher] ♻ Deduplicating job {j.id[:8]} (key={j.idempotency_key})")
-                j.status = "completed"
-                j.result = {"ok": True, "message": "idempotent_return", "deduplicated": True}
-                j.updated_at = datetime.utcnow().isoformat() + "Z"
-                storage.update_job(j)
-                continue
-
             # Dependencies
             if not j.depends_on or all(dep_id in completed_ids for dep_id in j.depends_on):
                 ready.append(j)
@@ -309,6 +310,15 @@ class Dispatcher:
                 
                 # Final result (success or max failure)
                 print(f"[dispatcher] ✓ Job {job.id[:8]} finished with status: {synced.status}")
+                
+                # --- IDEMPOTENCY COMPLETION HOOK (B2) ---
+                if synced.status == "completed" and synced.idempotency_key:
+                    storage.cache_completed_result(synced.id, {
+                        "ok": True,
+                        "status": "completed",
+                        "result_id": synced.id # or specific result identifier if available
+                    })
+                
                 _handle_lcp_followup(synced)
 
 
@@ -659,7 +669,77 @@ def create_job_for_task(task_id: str, job_create: models.JobCreate):
         # Note: Brief suggests 429 for submit
         raise HTTPException(status_code=429, detail={"ok": False, "error": "backpressure", "queue_depth": pending_count, "max": RobustnessConfig.MAX_QUEUE_DEPTH})
     
+    # --- IDEMPOTENCY GATE (G7) (B2) ---
+    decision = evaluate_idempotency(
+        storage, 
+        idempotency_key=job_create.idempotency_key, 
+        payload=job_create.payload
+    )
+    
+    if decision.action == "REJECT":
+        global IDEMPOTENCY_COLLISIONS_COUNTER
+        IDEMPOTENCY_COLLISIONS_COUNTER += 1
+        record_module_call(source="idempotency", target="idempotency_collision_1m", duration_ms=0)
+        
+        _audit_log("IDEMPOTENCY_KEY_COLLISION", {
+            "key": job_create.idempotency_key,
+            "existing_job_id": decision.job_id,
+            "reason": decision.reason
+        })
+        raise HTTPException(
+            status_code=409, 
+            detail=build_idempotency_conflict_detail(
+                job_create.idempotency_key,
+                existing_job_id=decision.job_id,
+                existing_hash_prefix=decision.reason, # Using reason as we don't store full hash in decision object yet or need it
+                new_hash_prefix=decision.payload_hash[:8] if decision.payload_hash else ""
+            )
+        )
+    
+    if decision.action == "RETURN_EXISTING":
+        existing_job = storage.get_job(decision.job_id)
+        if existing_job:
+            global IDEMPOTENT_HITS_COUNTER
+            IDEMPOTENT_HITS_COUNTER += 1
+            record_module_call(source="idempotency", target="idempotency_hit_1m", duration_ms=0)
+            
+            _audit_log("IDEMPOTENT_HIT", {"job_id": existing_job.id, "key": job_create.idempotency_key})
+            # Return existing job directly
+            # We add a meta flag to indicate it was deduplicated
+            # Result Integrity Check (Track B3)
+            if decision.cached_result:
+                try:
+                    def persist_integrity(h, a):
+                        global HASH_MIGRATIONS_COUNTER
+                        HASH_MIGRATIONS_COUNTER += 1
+                        storage.update_job_integrity(existing_job.id, h, a)
+                        _audit_log("RESULT_HASH_MIGRATED", {"job_id": existing_job.id, "hash_prefix": h[:12]})
+                    
+                    verify_or_migrate_hash(
+                        result_obj=decision.cached_result,
+                        expected_hash=existing_job.result_hash,
+                        alg=existing_job.result_hash_alg or "sha256",
+                        persist_hash=persist_integrity
+                    )
+                except IntegrityError as e:
+                    global INTEGRITY_FAILURES_COUNTER
+                    INTEGRITY_FAILURES_COUNTER += 1
+                    _audit_log("RESULT_INTEGRITY_FAIL", {
+                        "job_id": existing_job.id,
+                        "expected": existing_job.result_hash,
+                        "error": str(e)
+                    })
+                    raise HTTPException(403, detail="Result integrity verification failed. Data may be tampered.")
+
+            res = existing_job.model_dump()
+            res["idempotent"] = True
+            if decision.cached_result:
+                res["cached_result"] = decision.cached_result
+            return res
+
+    # --- ALLOW_NEW ---
     job = models.Job.from_create(task_id, job_create)
+    job.idempotency_hash = decision.payload_hash
     
     # --- GATEWAY ENFORCEMENT (G0-G4) ---
     # Convert job to dict for gate validation
@@ -889,6 +969,23 @@ def sync_job(job_id: str):
     )
 
     # 3) Phase 10.1: Chain Context + Specs Handling (Thin Sync)
+    # If job is completed, cache result for idempotency (G7 follow-up)
+    if job.status == "completed" and job.result:
+        # Track B3: Compute Hash
+        res_hash = compute_result_hash(job.result)
+        storage.cache_completed_result(job.id, job.result, result_hash=res_hash, result_hash_alg="sha256")
+        
+        # Audit & Metrics
+        global HASH_WRITES_COUNTER
+        HASH_WRITES_COUNTER += 1
+        _audit_log("RESULT_HASH_COMPUTED", {"job_id": job.id, "hash_prefix": res_hash[:12]})
+        
+        # Update local job object too so subsequent filters see it
+        job.result_hash = res_hash
+        job.result_hash_alg = "sha256"
+        
+    storage.update_job(job)
+        
     _handle_lcp_followup(job)
 
     # Job ist bereits von bridge.try_sync_result() aktualisiert
@@ -1218,6 +1315,13 @@ def get_system_metrics():
             "inflight": inflight,
             "ready_to_dispatch": ready_to_dispatch,
             "error_rate": error_rate,
+            
+            # --- IDEMPOTENCY METRICS (B2) ---
+            "idempotent_hits_1m": IDEMPOTENT_HITS_COUNTER,
+            "idempotent_collisions_1m": IDEMPOTENCY_COLLISIONS_COUNTER,
+            "integrity_fail_1m": INTEGRITY_FAILURES_COUNTER,
+            "result_hash_write_1m": HASH_WRITES_COUNTER,
+            "result_hash_migrated_1m": HASH_MIGRATIONS_COUNTER,
             
             # --- LEGACY KEYS (Keep for UI Compatibility) ---
             "queueLength": queue_depth,

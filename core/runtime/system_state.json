@@ -1,0 +1,17 @@
+{
+  "counters": {},
+  "health": {},
+  "last_transition": {
+    "actor": "system",
+    "event_id": "77b7bdbc-9c49-44b3-bf85-638445ca96ab",
+    "meta": {
+      "noop": true
+    },
+    "next_state": "PAUSED",
+    "prev_state": "PAUSED",
+    "reason": "System shutdown initiated",
+    "ts": 1768548247.7787333
+  },
+  "since_ts": 1768548239.527302,
+  "state": "PAUSED"
+}

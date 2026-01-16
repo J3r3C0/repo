@@ -177,6 +177,15 @@ def init_db():
     # Track B1: Data-Plane Robustness (Lease & Retry)
     migrate_jobs_robustness_fields(cursor)
     
+    # Track B2: Idempotency (Hash & Result Cache)
+    migrate_jobs_idempotency_fields(cursor)
+    
+    # Gateway Meta (Needed by enforce_gateway)
+    migrate_jobs_gateway_meta(cursor)
+
+    # Track B3: Result Integrity (Hashing)
+    migrate_jobs_result_integrity(cursor)
+    
     conn.commit()
     
     # Log DB info for debugging
@@ -214,6 +223,22 @@ def migrate_jobs_robustness_fields(cursor: sqlite3.Cursor) -> None:
     _add_column_if_missing(cursor, "jobs", "lease_owner TEXT", "lease_owner")
     _add_column_if_missing(cursor, "jobs", "lease_until_utc TEXT", "lease_until_utc")
     _add_column_if_missing(cursor, "jobs", "next_retry_utc TEXT", "next_retry_utc")
+
+def migrate_jobs_idempotency_fields(cursor: sqlite3.Cursor) -> None:
+    """Idempotent migration for Track B2 idempotency fields on jobs table."""
+    _add_column_if_missing(cursor, "jobs", "idempotency_hash TEXT", "idempotency_hash")
+    _add_column_if_missing(cursor, "jobs", "completed_result TEXT", "completed_result")
+    _add_column_if_missing(cursor, "jobs", "idempotency_first_seen_utc TEXT", "idempotency_first_seen_utc")
+
+def migrate_jobs_gateway_meta(cursor: sqlite3.Cursor) -> None:
+    """Add meta column to jobs table."""
+    _add_column_if_missing(cursor, "jobs", "meta TEXT DEFAULT '{}'", "meta")
+
+def migrate_jobs_result_integrity(cursor: sqlite3.Cursor) -> None:
+    """Add result integrity columns to jobs table."""
+    _add_column_if_missing(cursor, "jobs", "result_hash TEXT", "result_hash")
+    _add_column_if_missing(cursor, "jobs", "result_hash_alg TEXT DEFAULT 'sha256'", "result_hash_alg")
+    _add_column_if_missing(cursor, "jobs", "result_canonical TEXT", "result_canonical")
 
 @contextmanager
 def get_db():

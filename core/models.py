@@ -163,12 +163,20 @@ class Job(BaseModel):
     result: Optional[Dict[str, Any]] = None
     retry_count: int = 0
     idempotency_key: Optional[str] = None
+    idempotency_hash: Optional[str] = None
+    completed_result: Optional[Dict[str, Any]] = None
+    idempotency_first_seen_utc: Optional[str] = None
     priority: str = "normal"  # normal, high, critical
     timeout_seconds: int = 300
     depends_on: List[str] = []
     lease_owner: Optional[str] = None
     lease_until_utc: Optional[str] = None
     next_retry_utc: Optional[str] = None
+    meta: Dict[str, Any] = {}
+    idempotent: bool = False
+    result_hash: Optional[str] = None
+    result_hash_alg: str = "sha256"
+    result_canonical: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -182,8 +190,11 @@ class Job(BaseModel):
             status="pending",
             result=None,
             retry_count=0,
+            idempotency_key=j.idempotency_key,
+            idempotency_first_seen_utc=ts if j.idempotency_key else None,
             created_at=ts,
             updated_at=ts,
+            meta=j.payload.get("_meta", {}) if isinstance(j.payload, dict) else {}
         )
 
     def to_dict(self) -> Dict[str, Any]:

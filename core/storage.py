@@ -232,6 +232,13 @@ def list_jobs() -> List[models.Job]:
                 result=json.loads(r['result']) if r['result'] else None,
                 retry_count=r['retry_count'],
                 idempotency_key=r['idempotency_key'],
+                idempotency_hash=r['idempotency_hash'],
+                completed_result=json.loads(r['completed_result']) if r['completed_result'] else None,
+                idempotency_first_seen_utc=r['idempotency_first_seen_utc'],
+                meta=json.loads(r['meta']) if r['meta'] else {},
+                result_hash=r['result_hash'],
+                result_hash_alg=r['result_hash_alg'],
+                result_canonical=r['result_canonical'],
                 priority=r['priority'],
                 timeout_seconds=r['timeout_seconds'],
                 depends_on=json.loads(r['depends_on']),
@@ -253,6 +260,13 @@ def get_job(job_id: str) -> Optional[models.Job]:
                 result=json.loads(r['result']) if r['result'] else None,
                 retry_count=r['retry_count'],
                 idempotency_key=r['idempotency_key'],
+                idempotency_hash=r['idempotency_hash'],
+                completed_result=json.loads(r['completed_result']) if r['completed_result'] else None,
+                idempotency_first_seen_utc=r['idempotency_first_seen_utc'],
+                meta=json.loads(r['meta']) if r['meta'] else {},
+                result_hash=r['result_hash'],
+                result_hash_alg=r['result_hash_alg'],
+                result_canonical=r['result_canonical'],
                 priority=r['priority'],
                 timeout_seconds=r['timeout_seconds'],
                 depends_on=json.loads(r['depends_on']),
@@ -267,12 +281,17 @@ def get_job(job_id: str) -> Optional[models.Job]:
 def create_job(job: models.Job) -> models.Job:
     with get_db() as conn:
         conn.execute("""
-            INSERT INTO jobs (id, task_id, payload, status, result, retry_count, idempotency_key, priority, timeout_seconds, depends_on, lease_owner, lease_until_utc, next_retry_utc, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO jobs (id, task_id, payload, status, result, retry_count, idempotency_key, idempotency_hash, completed_result, idempotency_first_seen_utc, meta, result_hash, result_hash_alg, result_canonical, priority, timeout_seconds, depends_on, lease_owner, lease_until_utc, next_retry_utc, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             job.id, job.task_id, json.dumps(job.payload), job.status, 
             json.dumps(job.result) if job.result else None, job.retry_count,
-            job.idempotency_key, job.priority, job.timeout_seconds, json.dumps(job.depends_on),
+            job.idempotency_key, job.idempotency_hash, 
+            json.dumps(job.completed_result) if job.completed_result else None,
+            job.idempotency_first_seen_utc,
+            json.dumps(job.meta),
+            job.result_hash, job.result_hash_alg, job.result_canonical,
+            job.priority, job.timeout_seconds, json.dumps(job.depends_on),
             job.lease_owner, job.lease_until_utc, job.next_retry_utc,
             job.created_at, job.updated_at
         ))
@@ -298,14 +317,22 @@ def update_job(job: models.Job) -> None:
         conn.execute("""
             UPDATE jobs SET 
                 task_id=?, payload=?, status=?, result=?, retry_count=?, 
-                idempotency_key=?, priority=?, timeout_seconds=?, depends_on=?, 
-                lease_owner=?, lease_until_utc=?, next_retry_utc=?, 
+                idempotency_key=?, idempotency_hash=?, completed_result=?, 
+                idempotency_first_seen_utc=?, meta=?, 
+                result_hash=?, result_hash_alg=?, result_canonical=?,
+                priority=?, timeout_seconds=?, 
+                depends_on=?, lease_owner=?, lease_until_utc=?, next_retry_utc=?, 
                 updated_at=?
             WHERE id=?
         """, (
             job.task_id, json.dumps(job.payload), job.status, 
             json.dumps(job.result) if job.result else None, job.retry_count,
-            job.idempotency_key, job.priority, job.timeout_seconds, json.dumps(job.depends_on),
+            job.idempotency_key, job.idempotency_hash,
+            json.dumps(job.completed_result) if job.completed_result else None,
+            job.idempotency_first_seen_utc,
+            json.dumps(job.meta),
+            job.result_hash, job.result_hash_alg, job.result_canonical,
+            job.priority, job.timeout_seconds, json.dumps(job.depends_on),
             job.lease_owner, job.lease_until_utc, job.next_retry_utc,
             utcnow_iso(), job.id
         ))
@@ -354,6 +381,32 @@ def update_job(job: models.Job) -> None:
         except Exception as trace_err:
             # Never fail job update due to trace error
             print(f"[storage] Warning: Failed to log trace on DB write: {trace_err}")
+
+def find_job_by_idempotency_key(key: str) -> Optional[models.Job]:
+    """Find a job by its idempotency key."""
+    with get_db() as conn:
+        r = conn.execute("SELECT id FROM jobs WHERE idempotency_key = ?", (key,)).fetchone()
+        if r:
+            return get_job(r[0])
+    return None
+
+def update_job_integrity(job_id: str, result_hash: str, result_hash_alg: str, result_canonical: Optional[str] = None):
+    """Updates integrity fields for a job (e.g. during soft migration)."""
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE jobs SET result_hash = ?, result_hash_alg = ?, result_canonical = ?, updated_at = ? 
+            WHERE id = ?
+        """, (result_hash, result_hash_alg, result_canonical, utcnow_iso(), job_id))
+        conn.commit()
+
+def cache_completed_result(job_id: str, result_obj: Dict[str, Any], result_hash: Optional[str] = None, result_hash_alg: Optional[str] = None, result_canonical: Optional[str] = None) -> None:
+    """Store minimal completion result for idempotency."""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE jobs SET completed_result = ?, result_hash = ?, result_hash_alg = ?, result_canonical = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(result_obj), result_hash, result_hash_alg, result_canonical, utcnow_iso(), job_id)
+        )
+        conn.commit()
 
 # --- Rate Limit Config CRUD ---
 

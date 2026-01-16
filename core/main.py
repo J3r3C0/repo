@@ -22,7 +22,7 @@ def normalize_trace_state(state):
     if "constraints" not in s or s["constraints"] is None:
         s["constraints"] = {}
     return s
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Request
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
@@ -1141,7 +1141,7 @@ def list_projects():
     """Lists subdirectories in the Sheratan root as projects."""
     projects = []
     try:
-        from datetime import datetime
+        # from datetime import datetime (already imported at top)
         for entry in os.scandir(SHERATAN_ROOT):
             if entry.is_dir() and not entry.name.startswith(('.', '_', 'Z_')):
                 stats = entry.stat()
@@ -1197,24 +1197,42 @@ def get_system_metrics():
     try:
         cpu = psutil.cpu_percent(interval=None)
         memory = psutil.virtual_memory().percent
-        all_jobs = storage.list_jobs()
-        queue_len = len([j for j in all_jobs if j.status in ["pending", "running", "working", "queued"]])
+        
+        # Robustness Metrics (Track B1) - Timezone-safe
+        now_utc_iso = datetime.now(timezone.utc).isoformat()
+        queue_depth = storage.count_pending_jobs()
+        inflight = storage.count_inflight_jobs()
+        ready_to_dispatch = storage.count_ready_jobs(now_utc_iso)
         
         # Simple error rate: failed jobs / total jobs (last 100)
+        all_jobs = storage.list_jobs()
         recent_jobs = all_jobs[-100:]
-        failed = len([j for j in recent_jobs if j.status == "failed" or j.status == "error"])
-        error_rate = (failed / len(recent_jobs) * 100) if recent_jobs else 0
+        failed = len([j for j in recent_jobs if j.status in ("failed", "error")])
+        error_rate = round((failed / len(recent_jobs) * 100) if recent_jobs else 0, 2)
 
         return {
+            "status": "operational",
             "cpu": cpu,
             "memory": memory,
-            "queueLength": queue_len,
-            "errorRate": round(error_rate, 2),
-            "uptime": int(time.time() - psutil.boot_time())
+            "queue_depth": queue_depth,
+            "inflight": inflight,
+            "ready_to_dispatch": ready_to_dispatch,
+            "error_rate": error_rate,
+            
+            # --- LEGACY KEYS (Keep for UI Compatibility) ---
+            "queueLength": queue_depth,
+            "errorRate": error_rate,
+            "uptime": int(time.time() - psutil.boot_time()),
+            
+            "config": {
+                "max_queue": RobustnessConfig.MAX_QUEUE_DEPTH,
+                "max_inflight": RobustnessConfig.MAX_INFLIGHT,
+                "backpressure_mode": RobustnessConfig.BACKPRESSURE_MODE
+            }
         }
     except Exception as e:
         print(f"[api] Error fetching metrics: {e}")
-        return {"cpu": 0, "memory": 0, "queueLength": 0, "errorRate": 0}
+        return {"status": "error", "error": str(e)}
 
 @app.post("/metrics/module-calls")
 def post_module_metrics(payload: dict):

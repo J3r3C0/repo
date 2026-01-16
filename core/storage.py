@@ -252,30 +252,34 @@ def get_job(job_id: str) -> Optional[models.Job]:
     with get_db() as conn:
         r = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
         if r:
-            return models.Job(
-                id=r['id'],
-                task_id=r['task_id'],
-                payload=json.loads(r['payload']),
-                status=r['status'],
-                result=json.loads(r['result']) if r['result'] else None,
-                retry_count=r['retry_count'],
-                idempotency_key=r['idempotency_key'],
-                idempotency_hash=r['idempotency_hash'],
-                completed_result=json.loads(r['completed_result']) if r['completed_result'] else None,
-                idempotency_first_seen_utc=r['idempotency_first_seen_utc'],
-                meta=json.loads(r['meta']) if r['meta'] else {},
-                result_hash=r['result_hash'],
-                result_hash_alg=r['result_hash_alg'],
-                result_canonical=r['result_canonical'],
-                priority=r['priority'],
-                timeout_seconds=r['timeout_seconds'],
-                depends_on=json.loads(r['depends_on']),
-                lease_owner=r['lease_owner'],
-                lease_until_utc=r['lease_until_utc'],
-                next_retry_utc=r['next_retry_utc'],
-                created_at=r['created_at'],
-                updated_at=r['updated_at']
-            )
+            try:
+                return models.Job(
+                    id=r['id'],
+                    task_id=r['task_id'],
+                    payload=json.loads(r['payload']),
+                    status=r['status'],
+                    result=json.loads(r['result']) if r['result'] else None,
+                    retry_count=r['retry_count'],
+                    idempotency_key=r['idempotency_key'],
+                    idempotency_hash=r['idempotency_hash'],
+                    completed_result=json.loads(r['completed_result']) if r['completed_result'] else None,
+                    idempotency_first_seen_utc=r['idempotency_first_seen_utc'],
+                    meta=json.loads(r['meta']) if r['meta'] else {},
+                    result_hash=r['result_hash'],
+                    result_hash_alg=r['result_hash_alg'],
+                    result_canonical=r['result_canonical'],
+                    priority=r['priority'],
+                    timeout_seconds=r['timeout_seconds'],
+                    depends_on=json.loads(r['depends_on']),
+                    lease_owner=r['lease_owner'],
+                    lease_until_utc=r['lease_until_utc'],
+                    next_retry_utc=r['next_retry_utc'],
+                    created_at=r['created_at'],
+                    updated_at=r['updated_at']
+                )
+            except (json.JSONDecodeError, TypeError, KeyError) as e:
+                print(f"[storage] Error decoding job {r['id']}: {e}")
+                return None
     return None
 
 def create_job(job: models.Job) -> models.Job:
@@ -401,6 +405,7 @@ def update_job_integrity(job_id: str, result_hash: str, result_hash_alg: str, re
 
 def cache_completed_result(job_id: str, result_obj: Dict[str, Any], result_hash: Optional[str] = None, result_hash_alg: Optional[str] = None, result_canonical: Optional[str] = None) -> None:
     """Store minimal completion result for idempotency."""
+    print(f"[storage] Caching result for {job_id}, hash={result_hash[:12] if result_hash else 'None'}")
     with get_db() as conn:
         conn.execute(
             "UPDATE jobs SET completed_result = ?, result_hash = ?, result_hash_alg = ?, result_canonical = ?, updated_at = ? WHERE id = ?",

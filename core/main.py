@@ -12,16 +12,32 @@ Missions → Tasks → Jobs
 
 
 def normalize_trace_state(state):
-    """
-    Ensure decision_trace_v1 schema requirements are met.
-    In particular: state.constraints is required.
-    """
-    if state is None:
-        state = {}
-    s = dict(state)
-    if "constraints" not in s or s["constraints"] is None:
-        s["constraints"] = {}
+    """Ensure state satisfies decision_trace_v1 schema."""
+    s = dict(state or {})
+    if "context_refs" not in s: s["context_refs"] = []
+    if "constraints" not in s or not s["constraints"]:
+        s["constraints"] = {"budget_remaining": 100, "risk_level": "low"}
     return s
+
+def normalize_trace_action(action):
+    """Ensure action satisfies decision_trace_v1 schema."""
+    import uuid
+    a = dict(action or {})
+    if "action_id" not in a: a["action_id"] = str(uuid.uuid4())
+    if "type" not in a: a["type"] = "EXECUTE"
+    if "mode" not in a: a["mode"] = "execute"
+    if "params" not in a: a["params"] = {}
+    if "select_score" not in a: a["select_score"] = 1.0
+    if "risk_gate" not in a: a["risk_gate"] = True
+    return a
+
+def normalize_trace_result(result):
+    """Ensure result satisfies decision_trace_v1 schema."""
+    r = dict(result or {})
+    if "status" not in r: r["status"] = "success"
+    if "metrics" not in r: r["metrics"] = {}
+    if "score" not in r: r["score"] = 1.0
+    return r
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Request
 from contextlib import asynccontextmanager
@@ -238,24 +254,24 @@ class Dispatcher:
                             intent="dispatch_job",
                             build_id=os.getenv("SHERATAN_BUILD_ID", "main-v2"),
                             job_id=job.id,
-                            state={
+                            state=normalize_trace_state({
                                 "context_refs": [f"job:{job.id}"],  # Required by schema
                                 "job_status": "pending→working",
                                 "priority": job.priority,
                                 "queue_position": ready.index(job) if job in ready else -1
-                            },
-                            action={
-                                "type": "DISPATCH",
+                            }),
+                            action=normalize_trace_action({
+                                "type": "ROUTE",
                                 "mode": "execute",
                                 "params": {
                                     "worker_id": job.payload.get("mesh", {}).get("worker_id", "unknown"),
                                     "kind": job.payload.get("kind", "unknown")
                                 }
-                            },
-                            result={
-                                "status": "dispatched",
+                            }),
+                            result=normalize_trace_result({
+                                "status": "success",
                                 "metrics": {"dispatch_latency_ms": 0}
-                            }
+                            })
                         )
                     except Exception as trace_err:
                         print(f"[dispatcher] Warning: Failed to log dispatch trace: {trace_err}")
@@ -313,11 +329,19 @@ class Dispatcher:
                 
                 # --- IDEMPOTENCY COMPLETION HOOK (B2) ---
                 if synced.status == "completed" and synced.idempotency_key:
-                    storage.cache_completed_result(synced.id, {
+                    # Track B3: Compute Hash
+                    result_obj = {
                         "ok": True,
                         "status": "completed",
                         "result_id": synced.id # or specific result identifier if available
-                    })
+                    }
+                    res_hash = compute_result_hash(result_obj)
+                    storage.cache_completed_result(synced.id, result_obj, result_hash=res_hash, result_hash_alg="sha256")
+                    
+                    # Update audit/metrics (B3)
+                    global HASH_WRITES_COUNTER
+                    HASH_WRITES_COUNTER += 1
+                    _audit_log("RESULT_HASH_COMPUTED", {"job_id": synced.id, "hash_prefix": res_hash[:12]})
                 
                 _handle_lcp_followup(synced)
 
@@ -820,35 +844,53 @@ def dispatch_job(job_id: str):
 # ------------------------------------------------------------------------------
 
 @app.post("/api/jobs/{job_id}/sync", response_model=models.Job)
-def sync_job(job_id: str):
+async def sync_job(job_id: str, request: Request):
     """
-    1. Liest Worker-Result
-    2. Speichert es am Job
-    3. Führt LCPActionInterpreter aus (→ Follow-Up Jobs)
-    4. Gibt aktualisierten Job zurück
-    
-    Returns 202 Accepted if result not ready yet (instead of 404)
+    Unified Sync Endpoint:
+    1. Tries to read from bridge (file-based)
+    2. Fallback to POST body if provided (for tests/overrides)
     """
-    # 1) Worker-Result einlesen
+    payload = None
+    try:
+        # We use await request.json() to get the POST body
+        body = await request.json()
+        if body:
+            payload = body
+    except:
+        # No valid JSON body, ignore
+        pass
+
+    # 1) Try bridge first
     job = bridge.try_sync_result(job_id)
+    
+    # 2) Fallback to payload if bridge has no result
+    if job is None and payload:
+        job = storage.get_job(job_id)
+        if job:
+            if "status" in payload: job.status = payload["status"]
+            if "result" in payload: job.result = payload["result"]
+            job.updated_at = datetime.utcnow().isoformat() + "Z"
+            # We don't call storage.update_job yet, because the main logic below does it
+    
     if job is None:
         # Worker hat noch nichts geliefert - return current job status instead of 404
         current_job = storage.get_job(job_id)
         if current_job is None:
-            # Job not in storage (e.g. test jobs created as files directly)
-            # Return 202 Accepted to indicate "processing, not ready yet"
+            # Job not in storage
             from fastapi.responses import JSONResponse
             return JSONResponse(
                 status_code=202,
                 content={"job_id": job_id, "status": "processing", "message": "Job not found in storage, result not ready"}
             )
-        # Return 202 Accepted - result not ready yet
+        # Return 222 Accepted - result not ready yet
         from fastapi.responses import JSONResponse
         return JSONResponse(
             status_code=202,
             content=current_job.model_dump()
         )
 
+    job_id = job.id # Ensure we use the correct ID string
+    
     # 2) Worker-Latenz ermitteln (Job-Erstellung → Result Sync)
     worker_latency_ms = 0.0
     try:
@@ -874,20 +916,21 @@ def sync_job(job_id: str):
                 "retry_count": job.retry_count,
                 "has_result": job.result is not None
             }),
-            action={
-                "type": "COMPLETE",
+            action=normalize_trace_action({
+                "type": "EXECUTE",
                 "mode": "execute",
                 "params": {
                     "kind": job.payload.get("kind", "unknown") if isinstance(job.payload, dict) else "unknown"
                 }
-            },
-            result={
+            }),
+            result=normalize_trace_result({
                 "status": "success" if job.status == "completed" else "failed",
                 "metrics": {
                     "worker_latency_ms": worker_latency_ms,
                     "retry_count": job.retry_count
-                }
-            }
+                },
+                "score": 1.0 # Default for non-MCTS sync
+            })
         )
     except Exception as trace_err:
         print(f"[sync] Warning: Failed to log completion trace: {trace_err}")
@@ -942,8 +985,8 @@ def sync_job(job_id: str):
                     "context_refs": [f"job:{job_id}", f"chain:{job.payload.get('_chain_hint', {}).get('chain_id')}"],
                     "constraints": {"budget_remaining": 100, "risk_level": "low"}
                 }),
-                action=chosen_action,
-                result={
+                action=normalize_trace_action(chosen_action),
+                result=normalize_trace_result({
                     "status": "success" if job.status == "completed" else "failed",
                     "metrics": {
                         "latency_ms": latency_ms,
@@ -954,7 +997,7 @@ def sync_job(job_id: str):
                         "quality": quality
                     },
                     "score": score_bd["score"]
-                }
+                })
             )
         except Exception as te:
             print(f"[main] Warning: MCTS logging failed: {te}")

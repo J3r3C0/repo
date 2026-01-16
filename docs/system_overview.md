@@ -16,7 +16,7 @@
 
 | Port | Service | Purpose | Health Check |
 |------|---------|---------|--------------|
-| **8001** | **Core API** | Mission/Task/Job orchestration, State Machine, Dispatcher<br>- **Node Attestation (A2/A3)**: Hardens worker security by tracking attestation signals (build_id, capability_hash) with soft enforcement (health YELLOW + throttling).<br>- **Node Identity (A4)**: Implements Ed25519 cryptographic identity using TOFU (Trust On First Use) pinning. Prevents host_id spoofing by requiring signed heartbeats.<br>- **Robustness (B1)**: Data-plane protection via Backpressure Gates (Queue Depth + Inflight limits), DB-native Leases, and Standardized Retries with backoff.
+| **8001** | **Core API** | Mission/Task/Job orchestration, State Machine, Dispatcher<br>- **Node Attestation (A2/A3)**: Hardens worker security by tracking attestation signals (build_id, capability_hash) with soft enforcement.<br>- **Node Identity (A4)**: Implements Ed25519 identity using TOFU pinning. Prevents host_id spoofing.<br>- **Robustness (B1)**: Data-plane protection via Backpressure Gates, DB Leases, and Standardized Retries.<br>- **Idempotency (B2)**: Ensures at-most-once semantics via gateway hashing and result caching.<br>- **Result Integrity (B3)**: Tamper-proof result delivery using SHA256 hashing and canonical serialization.
 <br>    - **Admin Control**: Restricted `localhost` endpoints allow listing and manual clearance of policies. | `GET /api/system/state` |
 | **9000** | **Broker** | Mesh job auction & routing | `GET /health` |
 | **3000** | **WebRelay** | LLM bridge (Chrome CDP → Core) | `GET /health` |

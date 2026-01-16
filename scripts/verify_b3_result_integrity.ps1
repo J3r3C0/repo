@@ -52,21 +52,32 @@ catch {
 # --- T2: Tamper Detection ---
 Write-Header "T2: Tamper Detection"
 Write-Host "Manually tampering with DB..."
-$tampered_result = '{"success": true, "output": "Integrity is TAMPERED"}'
-# We use sqlite3 to update the DB directly
-sqlite3 $DB_PATH "UPDATE jobs SET completed_result = '$tampered_result' WHERE id = '$JOB_ID'"
+# We use sqlite3 to update the DB directly. Use escaped quotes for SQLite.
+sqlite3 $DB_PATH "UPDATE jobs SET completed_result = '{\""tampered\"":true}' WHERE id = '$JOB_ID';"
+$check = sqlite3 $DB_PATH "SELECT completed_result FROM jobs WHERE id = '$JOB_ID'"
+Write-Host "Current DB Value: $check"
 
 try {
-    $resp = Invoke-WebRequest -Uri "$HUB_URL/api/tasks/$TASK_ID/jobs" -Method Post -Body (@{idempotency_key = $key1; payload = $payload1 } | ConvertTo-Json) -ContentType "application/json" -ErrorAction Stop
+    Write-Host "Sending request for tampered job..."
+    $resp = Invoke-WebRequest -Uri "$HUB_URL/api/tasks/$TASK_ID/jobs" -Method Post -Body (@{idempotency_key = $key1; payload = $payload1 } | ConvertTo-Json) -ContentType "application/json" -ErrorAction Stop -TimeoutSec 10
     Write-Host "[FAIL] Expected 403 for tampered data, but got $($resp.StatusCode)" -ForegroundColor Red
     exit 1
 }
 catch {
-    if ($_.Exception.Response.StatusCode -eq "Forbidden") {
+    Write-Host "Caught exception: $($_.Exception.Message)"
+    if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq "Forbidden") {
         Write-Host "[PASS] Tampered data rejected with 403 Forbidden" -ForegroundColor Green
     }
-    else {
+    elseif ($_.Exception.Response) {
         Write-Host "[FAIL] Expected 403, but got $($_.Exception.Response.StatusCode)" -ForegroundColor Red
+        # Print actual error for debugging
+        $errorBody = $_.Exception.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($errorBody)
+        Write-Host "Error details: $($reader.ReadToEnd())"
+        exit 1
+    }
+    else {
+        Write-Host "[FAIL] Request failed without a response: $($_.Exception.Message)" -ForegroundColor Red
         exit 1
     }
 }
@@ -78,8 +89,7 @@ $job3 = Invoke-RestMethod -Uri "$HUB_URL/api/tasks/$TASK_ID/jobs" -Method Post -
 $JOB3_ID = $job3.id
 
 # Simulate completed job without hash (manual DB insert/update)
-$result3 = '{"migrated": true}'
-sqlite3 $DB_PATH "UPDATE jobs SET status = 'completed', completed_result = '$result3', result_hash = NULL WHERE id = '$JOB3_ID'"
+sqlite3 $DB_PATH "UPDATE jobs SET status = 'completed', completed_result = '{\""migrated\"":true}', result_hash = NULL WHERE id = '$JOB3_ID'"
 
 Write-Host "Requesting job with missing hash (triggering soft migrate)..."
 try {

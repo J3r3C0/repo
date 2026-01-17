@@ -37,7 +37,7 @@ cd ..\..
 
 REM Start Core
 echo   Starting Core...
-start "Core" cmd /c "python -u core\main.py > core.log 2>&1"
+start "Core" cmd /c "python -u repo\main.py > core.log 2>&1"
 
 REM Start Worker
 echo   Starting Worker...

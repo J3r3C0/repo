@@ -40,14 +40,14 @@ if %ERRORLEVEL% EQU 0 (
 
 REM Verify state persistence
 echo [4/4] Verifying state persistence...
-if exist runtime\system_state.json (
+if exist data\system_state.json (
     echo   ✓ State machine state saved
 )
-if exist runtime\performance_baselines.json (
-    echo   ✓ Performance baselines saved
-)
-if exist logs\state_transitions.jsonl (
+if exist data\state_transitions.jsonl (
     echo   ✓ State transition log exists
+)
+if exist data\decision_trace.jsonl (
+    echo   ✓ Decision trace log exists
 )
 
 echo.

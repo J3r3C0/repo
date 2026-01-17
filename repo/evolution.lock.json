@@ -1,0 +1,17 @@
+{
+    "project": "Sheratan Evolution",
+    "locked_version": "1.0.0",
+    "active_phase": "v1.1",
+    "constraints": {
+        "api_expansion": false,
+        "job_kind_expansion": false,
+        "policy_modification": false,
+        "heavy_deps_allowed": false
+    },
+    "gates": {
+        "system_exercise": "mandatory",
+        "import_trace": "mandatory",
+        "size_report": "mandatory"
+    },
+    "timestamp_utc": "2026-01-17T05:58:00Z"
+}

@@ -1,0 +1,3 @@
+# Optional features
+playwright
+numpy

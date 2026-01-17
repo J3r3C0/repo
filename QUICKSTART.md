@@ -129,4 +129,13 @@ START_COMPLETE_SYSTEM.bat
 3. ⏳ Job-Flow beobachten
 4. ⏳ Logs verstehen
 
-**Für Fortgeschrittene**: Siehe [task.md](task.md) für aktuelle TODOs.
+---
+
+## 🚀 Sheratan Evolution (Modular Core)
+
+Das System wurde auf eine modulare Struktur umgestellt. 
+- **Core Logic**: Befindet sich nun in `repo/core/`.
+- **API Entrypoint**: `repo/main.py`.
+- **Daten & Logs**: Konsolidiert in `data/`.
+
+Entwickler sollten für neue Features primär im `repo/` Verzeichnis arbeiten. Siehe [task.md](task.md) für den Migrationsstatus.

@@ -5,6 +5,7 @@ echo ========================================
 echo E2E Test Suite: Spec-to-Job Pipeline
 echo ========================================
 echo.
+set SHERATAN_DATA_DIR=data
 
 REM 1. Ensure system is stopped
 echo [1/4] Ensuring clean state...
@@ -14,7 +15,7 @@ echo   ✓ System stopped
 
 REM 2. Start system
 echo [2/4] Starting system...
-start "Sheratan Core" cmd /c "python -m core.main"
+start "Sheratan Core" cmd /c "python -u -m repo.main > core_e2e.log 2>&1"
 timeout /t 5 /nobreak >nul
 echo   ✓ System started (5s warmup)
 

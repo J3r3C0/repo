@@ -29,7 +29,7 @@ timeout /t 3 /nobreak >nul
 
 REM Start Core API (with State Machine)
 echo [2/8] Starting Core API (port 8001) with State Machine...
-start "Sheratan Core" cmd /k "python -u core\main.py"
+start "Sheratan Core" cmd /k "python -u repo\main.py"
 timeout /t 5 /nobreak >nul
 
 REM Start Broker

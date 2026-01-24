@@ -88,28 +88,28 @@ def create_app() -> FastAPI:
         kind = payload.get("kind", "unknown")
         params = payload.get("params", {})
         
-        # 1. Create Job Model
-        jc = JobCreate(payload=params)
+        # 1. Create Job Model - store kind in payload
+        full_payload = {"kind": kind, **params}
+        jc = JobCreate(payload=full_payload)
         job = Job.from_create(task_id="exercise-task", j=jc)
-        job.kind = kind
         
         # 2. Dynamic Plugin Execution
         import importlib
         try:
             module = importlib.import_module(f"plugins.{kind}")
             plugin_result = module.handle(params)
-            job.result = json.dumps(plugin_result)
+            job.result = plugin_result
             job.status = "completed" if plugin_result.get("ok") else "failed"
         except ImportError:
             job.status = "failed"
-            job.result = json.dumps({"ok": False, "error": f"Plugin {kind} not found"})
+            job.result = {"ok": False, "error": f"Plugin {kind} not found"}
         except Exception as e:
             job.status = "failed"
-            job.result = json.dumps({"ok": False, "error": str(e)})
+            job.result = {"ok": False, "error": str(e)}
         
         # 3. Finalize in DB
         db_create_job(job)
-        return {"ok": job.status == "completed", "job_id": job.id, "result": json.loads(job.result)}
+        return {"ok": job.status == "completed", "job_id": job.id, "result": job.result}
 
     @app.get("/index.html")
     @app.get("/")

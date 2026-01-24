@@ -85,6 +85,8 @@ class GatewayEnforcer:
                 "agent_plan",
                 "read_file",
                 "write_file",
+                "append_file",
+                "patch_file",
                 "walk_tree",
                 "read_file_batch"
             ],

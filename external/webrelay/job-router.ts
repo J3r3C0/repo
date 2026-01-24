@@ -80,24 +80,51 @@ export class JobRouter {
       return `${CORE2_LCP_SYSTEM_PROMPT}\n\nUSER REQUEST:\n${payload.prompt}\n\nRESPOND NOW WITH JSON ONLY:`;
     }
 
-    // 2. agent_plan format
-    if (payload && kind === 'agent_plan' && payload.task?.params?.user_prompt) {
-      const userPrompt = payload.task.params.user_prompt;
-      const projectRoot = payload.task.params.project_root || '/workspace/project';
+    // 2. agent_plan format (Handles both initial and recursive planning)
+    if (payload && kind === 'agent_plan') {
+      const params = payload.params || {};
+      const taskParams = payload.task?.params || {};
+
+      // Determine user prompt from various locations (initial or recursive)
+      const userPrompt = params.input?.user_request || taskParams.user_prompt || params.user_prompt || "Continue planning.";
+      const projectRoot = taskParams.project_root || params.project_root || '/workspace/project';
       const artifacts = payload.artifacts || {};
 
       // Build artifact summary for the prompt
       let artifactSummary = '';
+      const inputMeta = params.input || {};
+
+      if (inputMeta.context_summary) {
+        artifactSummary += `\nCONTEXT SUMMARY:\n`;
+        artifactSummary += `- Files found: ${inputMeta.context_summary.file_list_count || 0}\n`;
+        artifactSummary += `- Files read: ${inputMeta.context_summary.file_blobs_count || 0}\n`;
+      }
+
       if (Object.keys(artifacts).length > 0) {
-        artifactSummary = '\nPREVIOUS JOB ARTIFACTS (CONTEXT):\n';
+        artifactSummary += '\nPREVIOUS JOB ARTIFACTS (DETAILS):\n';
         for (const [key, details] of Object.entries(artifacts)) {
           const value = (details as any).value;
           if (Array.isArray(value)) {
-            artifactSummary += `- ${key}: [${value.slice(0, 5).join(', ')}${value.length > 5 ? '... and ' + (value.length - 5) + ' more' : ''}]\n`;
+            artifactSummary += `- ${key} (list): [${value.slice(0, 5).join(', ')}${value.length > 5 ? '... and ' + (value.length - 5) + ' more' : ''}]\n`;
           } else if (typeof value === 'object' && value !== null) {
-            artifactSummary += `- ${key}: { ${Object.keys(value).slice(0, 5).join(', ')}${Object.keys(value).length > 5 ? '... ' : ''} }\n`;
+            artifactSummary += `- ${key} (map): { ${Object.keys(value).slice(0, 5).join(', ')}${Object.keys(value).length > 5 ? '... ' : ''} }\n`;
           } else {
             artifactSummary += `- ${key}: ${String(value).slice(0, 200)}${String(value).length > 200 ? '...' : ''}\n`;
+          }
+        }
+      }
+
+      // Phase 10: Include direct tool results (confirmation messages)
+      if (inputMeta.tool_results && Array.isArray(inputMeta.tool_results)) {
+        artifactSummary += '\nDIRECT TOOL RESULTS (LAST TURN):\n';
+        for (const res of inputMeta.tool_results) {
+          const kind = res.kind || 'unknown';
+          const msg = res.result?.message || res.result?.summary || res.result?.error || JSON.stringify(res.result).slice(0, 200);
+          artifactSummary += `- [${kind}]: ${msg}\n`;
+
+          // If it was a file action, show path context
+          if (res.result?.path) {
+            artifactSummary += `  (Target: ${res.result.path})\n`;
           }
         }
       }

@@ -18,9 +18,18 @@ class GateConfig:
         "NOOP",
         "FILE_READ",
         "FILE_WRITE",
+        "FILE_APPEND",
+        "write_file",
+        "append_file",
+        "list_files",
+        "read_file",
+        "walk_tree",
+        "read_file_batch",
+        "agent_plan",
+        "llm_call",
+        "pdf_to_json",
         "PATCH_APPLY",
         "RUN_TEST",
-        # "HTTP_GET",  # enable only if you really want network
     })
 
     # Kinds that are allowed only with operator ACK

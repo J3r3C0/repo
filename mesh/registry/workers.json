@@ -23,14 +23,6 @@
         "cost": 20
       },
       {
-        "kind": "agent_plan",
-        "cost": 100
-      },
-      {
-        "kind": "llm_call",
-        "cost": 100
-      },
-      {
         "kind": "walk_tree",
         "cost": 20
       },
@@ -40,7 +32,7 @@
       }
     ],
     "status": "online",
-    "last_seen": 1768471985.39773,
+    "last_seen": 1769140994.802208,
     "endpoint": null,
     "stats": {
       "latency_ms_ema": 750.0,
@@ -71,7 +63,7 @@
       }
     ],
     "status": "online",
-    "last_seen": 1768459432.936861,
+    "last_seen": 1768981896.7899783,
     "endpoint": "http://localhost:3000",
     "stats": {
       "latency_ms_ema": 750.0,

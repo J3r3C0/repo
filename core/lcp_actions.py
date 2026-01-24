@@ -83,20 +83,37 @@ def parse_lcp(result: Dict[str, Any], *, default_chain_id: str) -> Tuple[Optiona
 def normalize_job_specs(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Ensure each spec has: {kind: str, params: dict}
-    Drop invalid entries deterministically.
+    Deduce kind from 'kind' or 'type'.
+    Move 'name' and other top-level keys into params for template resolution and processing.
     """
     normalized = []
     for spec in jobs:
         if not isinstance(spec, dict):
             continue
         
-        kind = spec.get("kind") or spec.get("name")
+        # Determine Kind (kind or type)
+        kind = spec.get("kind") or spec.get("type")
+        
+        # If no kind/type, but we have a name, maybe the LLM misused 'name' as kind?
+        if not kind and spec.get("name"):
+            kind = spec.get("name")
+            
         if not kind:
             continue
         
-        params = spec.get("params", {})
+        # Start with explicit params or empty dict
+        params = spec.get("params")
         if not isinstance(params, dict):
             params = {}
+        else:
+            # Create a copy to avoid mutating original if shared
+            params = dict(params)
+        
+        # Add all other top-level keys to params (except kind/type/params)
+        # This preserves 'name', 'auto_dispatch', 'dedupe_key', etc.
+        for k, v in spec.items():
+            if k not in ("kind", "type", "params") and k not in params:
+                params[k] = v
         
         normalized.append({
             "kind": kind,

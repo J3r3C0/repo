@@ -4,6 +4,9 @@ REM Sheratan Production Validation Runner
 REM Starts all services and runs comprehensive validation tests
 REM ============================================================================
 
+REM Configuration
+set SHERATAN_LLM_BASE_URL=http://localhost:3000/api/job/submit
+
 echo [PRODUCTION VALIDATION] Starting comprehensive system validation...
 echo.
 
@@ -32,12 +35,12 @@ start "" "%CHROME_PATH%" --remote-debugging-port=9222 --user-data-dir="%TEMP%\ch
 REM Start WebRelay
 echo   Starting WebRelay...
 cd external\webrelay
-start "WebRelay" cmd /c "npm start > ..\..\webrelay.log 2>&1"
+start "WebRelay" cmd /c "npm run build && npm start > ..\..\webrelay.log 2>&1"
 cd ..\..
 
 REM Start Core
 echo   Starting Core...
-start "Core" cmd /c "python -u repo\main.py > core.log 2>&1"
+start "Core" cmd /c "python -u core\main.py > core.log 2>&1"
 
 REM Start Worker
 echo   Starting Worker...

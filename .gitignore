@@ -1,235 +1,39 @@
-# ============================================================================
-# Sheratan Clean Build - .gitignore
-# ============================================================================
-
-# -----------------------------------------------------------------------------
-# Sheratan Runtime & Artifacts (PRIMARY SIZE DRIVERS)
-# -----------------------------------------------------------------------------
-
-# State machine persistence
-/runtime/
-/logs/
-*.jsonl
-*.log
-
-# Brain artifacts / generated evidence
-v-mesh-antigravity/**/brain_artifacts/
-v-mesh-antigravity/history/
-**/brain_artifacts/
-**/history/legacy_stream_*.txt
-**/uploaded_image_*.png
-**/*_dashboard_view_*.png
-**/*_details_*.png
-
-# Data directories (root level only, not dashboard source!)
-/data/
-/webrelay_out/
-/webrelay_in/
-/chains/
-/missions/
-
-# Chrome profile data
-chrome_profile/
-data/chrome_profile/
-
-# Ledger & events
-ledger.json
-ledger.json.bak
-ledger_events.jsonl
-
-# Mesh runtime
-mesh/runtime/
-
-# Backup and archive directories
-backup/
-archive/
-
-# -----------------------------------------------------------------------------
-# Security: Private Keys (NEVER COMMIT REAL KEYS)
-# -----------------------------------------------------------------------------
-
-# Offgrid keys (keep only example templates)
-mesh/offgrid/keys/*.json
-!mesh/offgrid/keys/*.example.json
-!mesh/offgrid/keys/revocations.json
-
-# Any other private keys
-*.key
-*.pem
-*.p12
-*.pfx
-id_rsa
-id_ed25519
-
-# -----------------------------------------------------------------------------
 # Python
-# -----------------------------------------------------------------------------
-
-# Byte-compiled / optimized / DLL files
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.coverage
 .pytest_cache/
-coverage.xml
-*.cover
 
-# Environments
+# Environment / IDE / OS
 .env
-.env.local
 .venv
-env/
 venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Databases
-*.db
-*.sqlite
-*.sqlite3
-worker_state_*.db
-attempts_*.db
-
-# -----------------------------------------------------------------------------
-# Node / React / TypeScript
-# -----------------------------------------------------------------------------
-
-# Dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Build outputs
-dist/
-dist-ssr/
-build/
-.out/
-.next/
-*.tsbuildinfo
-
-# WebRelay specific
-external/webrelay/runtime/
-external/webrelay/dist/
-
-# -----------------------------------------------------------------------------
-# OS / IDE
-# -----------------------------------------------------------------------------
-
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
-$RECYCLE.BIN/
-*.lnk
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
-
-# Linux
-*~
-.directory
-
-# IDE
+env/
 .vscode/
 .idea/
-*.swp
-*.swo
+.DS_Store
+Thumbs.db
 
-# -----------------------------------------------------------------------------
-# Sheratan Specific (Temporary / Test Files)
-# -----------------------------------------------------------------------------
+# Node / JS
+node_modules/
+**/node_modules/
 
-# Test outputs
-test_*.txt
-result*.txt
-result*.json
-dump.txt
-out_list.txt
-root_dir.txt
-list.txt
+# Logs & Temporary Files
+logs/
+*.log
+temp/
+tmp/
+runtime/
+**/runtime/archive/
 
-# Backup files
-*.bak
-*.backup
-
-# Temporary state files
-test_workers.json
-test_workers.json.bak
-
-# Verification logs
-verify.log
-verify_v2.log
-core_v2.log
-worker_v2.log
-worker_final.log
-worker_live.log
-worker_live_err.log
-webrelay.log
-
-# Temporary files
+# Project Data & Artifacts
+data/
+archive/
+docs/archive/
+ledger_events.jsonl
 *.tmp
-*.temp
-
-# Git conflict markers
-*.orig
-
-# -----------------------------------------------------------------------------
-# Keep .env.example
-# -----------------------------------------------------------------------------
-!.env.example
-
-legacy_dev_pläne/Implementierungsplan v. Track B Data-Plane Robustness.md
-legacy_dev_pläne/Implementierungsplan v2.0 Track C Observability V2.md
-legacy_dev_pläne/implementierungsplan v2.2 b2.md
-legacy_dev_pläne/klarstellung aktuell a2.md
-legacy_dev_pläne/konkrete patch skeletons a2.md
-legacy_dev_pläne/plan A2 v2.4.md
-legacy_dev_pläne/plan A2.md
-legacy_dev_pläne/plan b3.md
-legacy_dev_pläne/Sheratan Gateway Versionen.pdf
-legacy_dev_pläne/stabilization_plan.md
-legacy_dev_pläne/system_overview.md
-legacy_dev_pläne/task.md
-legacy_dev_pläne/v2 masterplan.md
+audit_results.txt
+core.log
+webrelay.log
+worker.log
+import_verification_results.tmp

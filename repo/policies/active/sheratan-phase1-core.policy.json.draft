@@ -1,0 +1,13 @@
+{
+  "schema_version": "policy_bundle_v1",
+  "policy_id": "sheratan-phase1-core",
+  "version": "1.0.0",
+  "created_at": "2026-01-29T00:00:00Z",
+  "approved_by": "human",
+  "hash": "sha256:REPLACE_ME",
+  "rules": [
+    { "rule_id": "deterministic_mode", "type": "require", "target": "DETERMINISTIC_MODE", "value": true, "severity": "hard" },
+    { "rule_id": "no_learning", "type": "forbid", "target": "ENGINE_MUTATES_FROM_OBS", "severity": "hard" },
+    { "rule_id": "trace_required", "type": "require", "target": "DECISION_TRACE_ON_TRANSITION", "value": true, "severity": "hard" }
+  ]
+}

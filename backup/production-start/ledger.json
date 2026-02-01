@@ -1,0 +1,167 @@
+{
+  "accounts": {
+    "system:operator": {
+      "balance": 0,
+      "created_at": "2026-01-11T00:56:59.870094Z",
+      "meta": {}
+    },
+    "mesh_provider": {
+      "balance": 0,
+      "created_at": "2026-01-11T00:56:59.870094Z",
+      "meta": {}
+    },
+    "system": {
+      "balance": 999999999999700000,
+      "created_at": "2026-01-11T02:04:34.755925Z",
+      "meta": {}
+    },
+    "default_user": {
+      "balance": 50000,
+      "created_at": "2026-01-11T02:04:34.755925Z",
+      "meta": {}
+    },
+    "test_user": {
+      "balance": 50000,
+      "created_at": "2026-01-11T02:04:34.818995Z",
+      "meta": {}
+    },
+    "mobile_user": {
+      "balance": 50000,
+      "created_at": "2026-01-11T02:04:34.883678Z",
+      "meta": {}
+    },
+    "alice": {
+      "balance": 150000,
+      "created_at": "2026-01-11T03:02:21.098192Z",
+      "meta": {}
+    }
+  },
+  "transfers": [
+    {
+      "id": "9b09e2ec-8ab9-49af-abd8-2d673b6de5b4",
+      "timestamp": "2026-01-11T02:04:34.782867Z",
+      "from_account": "system",
+      "to_account": "default_user",
+      "amount": 10000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "c903d69f-de5b-489c-a3ff-e894f3359b85",
+      "timestamp": "2026-01-11T02:04:34.844670Z",
+      "from_account": "system",
+      "to_account": "test_user",
+      "amount": 10000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "496cbcfd-cb3d-4022-9f02-de920afba0ab",
+      "timestamp": "2026-01-11T02:04:34.908132Z",
+      "from_account": "system",
+      "to_account": "mobile_user",
+      "amount": 10000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "920d0ae3-4d29-47d4-8905-fc9a1a4669c8",
+      "timestamp": "2026-01-11T02:35:55.260910Z",
+      "from_account": "system",
+      "to_account": "default_user",
+      "amount": 10000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "1294cce2-6069-4ce0-814d-6a4406d6b6e3",
+      "timestamp": "2026-01-11T02:35:55.311855Z",
+      "from_account": "system",
+      "to_account": "test_user",
+      "amount": 10000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "f0690c10-ff5e-4af0-896e-a29ab82ccd3d",
+      "timestamp": "2026-01-11T02:35:55.358148Z",
+      "from_account": "system",
+      "to_account": "mobile_user",
+      "amount": 10000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "a0b719bf-79df-4d95-8f14-5d9847ee0862",
+      "timestamp": "2026-01-11T03:01:35.348539Z",
+      "from_account": "system",
+      "to_account": "default_user",
+      "amount": 10000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "f59d4543-dd84-4f9e-a6e8-25f9159eb6a5",
+      "timestamp": "2026-01-11T03:01:35.392419Z",
+      "from_account": "system",
+      "to_account": "test_user",
+      "amount": 10000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "c2beeb3b-b3a7-4244-b575-32a923b38ba5",
+      "timestamp": "2026-01-11T03:01:35.430953Z",
+      "from_account": "system",
+      "to_account": "mobile_user",
+      "amount": 10000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "0a8a8603-928d-40b7-b501-263e2959c02e",
+      "timestamp": "2026-01-11T03:02:20.971018Z",
+      "from_account": "system",
+      "to_account": "default_user",
+      "amount": 20000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "10555299-d5e6-4fc4-a483-fc533f2a3ea0",
+      "timestamp": "2026-01-11T03:02:21.025171Z",
+      "from_account": "system",
+      "to_account": "test_user",
+      "amount": 20000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "6c6bf4dd-79ea-4bee-a87d-17a313f89e98",
+      "timestamp": "2026-01-11T03:02:21.071425Z",
+      "from_account": "system",
+      "to_account": "mobile_user",
+      "amount": 20000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "2fc6cac6-6f54-41aa-8a12-2e8458ba4661",
+      "timestamp": "2026-01-11T03:02:21.121355Z",
+      "from_account": "system",
+      "to_account": "alice",
+      "amount": 50000,
+      "job_id": null,
+      "note": "Initial balance"
+    },
+    {
+      "id": "a52bfa28-78a1-4f29-9cbd-7fba45a6fb54",
+      "timestamp": "2026-01-11T03:04:07.518294Z",
+      "from_account": "system",
+      "to_account": "alice",
+      "amount": 100000,
+      "job_id": null,
+      "note": "Initial balance for LLM jobs"
+    }
+  ]
+}

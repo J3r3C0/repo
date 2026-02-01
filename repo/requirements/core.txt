@@ -2,6 +2,8 @@ fastapi
 uvicorn
 pydantic
 httpx
+click>=8.1.0
+anyio>=4.4.0
 watchdog
 sqlite-utils
 jsonschema

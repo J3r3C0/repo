@@ -158,46 +158,24 @@ export function HealthTab() {
         </div>
 
         {/* Port Configuration */}
+        {/* System Info */}
         <div className="bg-sheratan-card border border-slate-700 rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-700">
-            <h3 className="text-sm">Port Configuration</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Active service ports</p>
+            <h3 className="text-sm">System Environment</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Runtime information</p>
           </div>
           <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between p-3 bg-slate-900/40 rounded border border-slate-800">
-              <div>
-                <div className="text-sm text-slate-200">Core API</div>
-                <div className="text-xs text-slate-400 mt-0.5">HTTP REST API</div>
-              </div>
-              <div className="text-sheratan-accent">:7007</div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-400">Environment</span>
+              <span className="text-sheratan-accent">{window.location.hostname === 'localhost' ? 'Development' : 'Production'}</span>
             </div>
-            <div className="flex items-center justify-between p-3 bg-slate-900/40 rounded border border-slate-800">
-              <div>
-                <div className="text-sm text-slate-200">Mesh Discovery</div>
-                <div className="text-xs text-slate-400 mt-0.5">UDP Broadcast</div>
-              </div>
-              <div className="text-sheratan-accent">:9001</div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-400">Node ID</span>
+              <span className="font-mono text-xs">sheratan-hub-core-v2</span>
             </div>
-            <div className="flex items-center justify-between p-3 bg-slate-900/40 rounded border border-slate-800">
-              <div>
-                <div className="text-sm text-slate-200">Trader Engine</div>
-                <div className="text-xs text-slate-400 mt-0.5">WebSocket + REST</div>
-              </div>
-              <div className="text-sheratan-accent">:8080</div>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-slate-900/40 rounded border border-slate-800">
-              <div>
-                <div className="text-sm text-slate-200">Relay Inbound</div>
-                <div className="text-xs text-slate-400 mt-0.5">TCP Stream</div>
-              </div>
-              <div className="text-sheratan-accent">:9100</div>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-slate-900/40 rounded border border-slate-800">
-              <div>
-                <div className="text-sm text-slate-200">Relay Outbound</div>
-                <div className="text-xs text-slate-400 mt-0.5">TCP Stream</div>
-              </div>
-              <div className="text-sheratan-accent">:9101</div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-400">API Gateway</span>
+              <span className="text-emerald-400">ENABLED</span>
             </div>
           </div>
         </div>

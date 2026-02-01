@@ -1,0 +1,352 @@
+[
+  {
+    "t": 1769700550.2649295,
+    "source": "network",
+    "resonance": 1.0,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "system",
+    "resonance": 0.9370627045631409,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.9854777749244018}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "user",
+    "resonance": 0.6446794271469116,
+    "state_id": "f7b2b1d6",
+    "data": "{'type': 'login', 'success': True, 'v': 0.06139956083429143}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "system",
+    "resonance": 1.1947219848632815,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "network",
+    "resonance": 1.0913161516189578,
+    "state_id": "de876052",
+    "data": "{'type': 'login', 'success': True, 'v': 0.5046510583099006}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "network",
+    "resonance": 0.7661257982254028,
+    "state_id": "ea64807a",
+    "data": "{'type': 'login', 'success': True, 'v': 0.5009406661610294}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "user",
+    "resonance": 1.3868252158164982,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "system",
+    "resonance": 1.355177074670792,
+    "state_id": "de876052",
+    "data": "{'type': 'login', 'success': True, 'v': 0.8833686692653443}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "system",
+    "resonance": 0.7856007218360901,
+    "state_id": "ff3b7bf1",
+    "data": "{'type': 'error', 'code': 404, 'v': 0.09207130642090955}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "system",
+    "resonance": 1.5803278923034674,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "system",
+    "resonance": 1.533706837892533,
+    "state_id": "de876052",
+    "data": "{'type': 'login', 'success': True, 'v': 0.7658541749597818}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "system",
+    "resonance": 1.563699638843537,
+    "state_id": "de876052",
+    "data": "{'type': 'login', 'success': True, 'v': 0.008876961216135237}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "network",
+    "resonance": 1.8737184584140785,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2654655,
+    "source": "user",
+    "resonance": 1.7080516815185554,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.24704810211344796}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "user",
+    "resonance": 0.7739129662513733,
+    "state_id": "7187cc8b",
+    "data": "{'type': 'heartbeat', 'v': 0.3745137661729706}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "network",
+    "resonance": 2.057827055454255,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "user",
+    "resonance": 0.7980992794036865,
+    "state_id": "22d2890d",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.8027139654768687}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "user",
+    "resonance": 0.944872558116913,
+    "state_id": "ff3b7bf1",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.3607164514769873}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "network",
+    "resonance": 2.1732221603393564,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "system",
+    "resonance": 2.1313138902187356,
+    "state_id": "de876052",
+    "data": "{'type': 'error', 'code': 404, 'v': 0.7494185517386341}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "network",
+    "resonance": 1.9668848991394052,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.8014657467604694}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "user",
+    "resonance": 2.4506871402263655,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "network",
+    "resonance": 2.1761625289917004,
+    "state_id": "de876052",
+    "data": "{'type': 'login', 'success': True, 'v': 0.8300800160872451}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "system",
+    "resonance": 1.0717974185943606,
+    "state_id": "ff3b7bf1",
+    "data": "{'type': 'error', 'code': 404, 'v': 0.7220043809088462}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "user",
+    "resonance": 2.6350173711776748,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "network",
+    "resonance": 2.3601171016693128,
+    "state_id": "de876052",
+    "data": "{'type': 'login', 'success': True, 'v': 0.8877624647608657}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "network",
+    "resonance": 2.6894454598426836,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.06268066995086963}"
+  },
+  {
+    "t": 1769700550.266048,
+    "source": "user",
+    "resonance": 3.4815791845321677,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "system",
+    "resonance": 3.0790340924263018,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.2671141560883691}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "network",
+    "resonance": 3.233249816894533,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.014012588687060012}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "user",
+    "resonance": 3.8468776845932027,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "system",
+    "resonance": 3.441563973426821,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.7492636162896363}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "network",
+    "resonance": 3.888725602626803,
+    "state_id": "de876052",
+    "data": "{'type': 'error', 'code': 404, 'v': 0.5282218742937675}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "network",
+    "resonance": 4.116613197326663,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "network",
+    "resonance": 3.6086837553977986,
+    "state_id": "de876052",
+    "data": "{'type': 'heartbeat', 'v': 0.7922177533489632}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "user",
+    "resonance": 0.7716500759124756,
+    "state_id": "f427df2d",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.5256163577490912}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "network",
+    "resonance": 4.403264079093936,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "system",
+    "resonance": 4.1707956647872955,
+    "state_id": "de876052",
+    "data": "{'type': 'error', 'code': 404, 'v': 0.7332927909688244}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "system",
+    "resonance": 3.9902049064636254,
+    "state_id": "de876052",
+    "data": "{'type': 'heartbeat', 'v': 0.4003099495862341}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "network",
+    "resonance": 4.70368525028229,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "system",
+    "resonance": 4.422862844467165,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'hello', 'v': 0.19658015850623345}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "user",
+    "resonance": 4.5211056804657,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'hello', 'v': 0.5267207239586708}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "network",
+    "resonance": 5.037500152587892,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "user",
+    "resonance": 0.7919264435768127,
+    "state_id": "c7d09a1b",
+    "data": "{'type': 'message', 'body': 'hello', 'v': 0.9711129629712887}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "network",
+    "resonance": 4.58543930053711,
+    "state_id": "de876052",
+    "data": "{'type': 'login', 'success': True, 'v': 0.44370466389848573}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "system",
+    "resonance": 5.340694270133973,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "network",
+    "resonance": 5.300398178100586,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat', 'v': 0.11571164773537057}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "system",
+    "resonance": 4.802668876647949,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'hello', 'v': 0.7543877340657714}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "user",
+    "resonance": 5.689261872768402,
+    "state_id": "de876052",
+    "data": "{'type': 'message', 'body': 'repeat'}"
+  },
+  {
+    "t": 1769700550.2667649,
+    "source": "system",
+    "resonance": 5.37067151069641,
+    "state_id": "de876052",
+    "data": "{'type': 'login', 'success': True, 'v': 0.5395215672738145}"
+  }
+]

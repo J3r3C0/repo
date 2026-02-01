@@ -3,3 +3,6 @@ pytest-asyncio
 black
 mypy
 pyinstaller
+
+# schema validation
+jsonschema>=4.21.0

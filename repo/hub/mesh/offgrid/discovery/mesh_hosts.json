@@ -1,0 +1,24 @@
+{
+  "http://127.0.0.1:8081": {
+    "node_id": "node-A",
+<<<<<<< HEAD:mesh/offgrid/discovery/mesh_hosts.json
+    "last_seen": "2026-01-16T18:32:12.290532Z",
+    "active": true
+  },
+  "http://127.0.0.1:8082": {
+    "node_id": "node-B",
+    "last_seen": "2026-01-16T18:32:12.303828Z",
+    "active": true
+=======
+    "last_seen": "2026-01-28T18:42:30.142959Z",
+    "active": true,
+    "health": "YELLOW"
+  },
+  "http://127.0.0.1:8082": {
+    "node_id": "node-B",
+    "last_seen": "2026-01-28T18:42:23.834298Z",
+    "active": true,
+    "health": "GREEN"
+>>>>>>> 0d05299baf01209327a7b0a1e6eb7b526f866bcb:hub/mesh/offgrid/discovery/mesh_hosts.json
+  }
+}

@@ -351,7 +351,7 @@ def main() -> None:
         # 5) read_file job
         def _read_file():
             # Choose a deterministic small file
-            path = os.environ.get("SHERATAN_EXERCISE_READFILE", "main.py")
+            path = os.environ.get("SHERATAN_EXERCISE_READFILE", "repo/main.py")
             res = http_post_json(f"{base_url}/api/jobs", {"kind": "read_file", "params": {"path": path}}, timeout_s=step_timeout)
             if res.get("ok") is not True:
                 raise RuntimeError(f"read_file returned ok!=true: {res}")

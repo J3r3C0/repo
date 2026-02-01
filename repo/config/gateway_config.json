@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "enforce_on_api": true,
+  "enforcement_mode": "soft",
+  "allowed_kinds": [
+    "llm_call",
+    "agent_plan",
+    "read_file",
+    "write_file",
+    "walk_tree",
+    "read_file_batch",
+    "code_analysis"
+  ],
+  "require_provenance": true,
+  "log_all_decisions": true,
+  "_comment": "Set enforcement_mode to 'hard' after testing to block violations. Soft mode only warns."
+}

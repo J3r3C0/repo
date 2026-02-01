@@ -10,6 +10,9 @@ import { LogsTab } from "./features/logs/LogsTab";
 import { SettingsTab } from "./features/settings/SettingsTab";
 import { ModelInspectorTab } from "./features/model/ModelInspectorTab";
 import { DependencyMapTab } from "./features/dependencies/DependencyMapTab";
+import { OpsTab } from "./features/ops/OpsTab";
+import { AlertsTab } from "./features/alerts/AlertsTab";
+import { DiagnosticsTab } from "./features/diagnostics/DiagnosticsTab";
 import type { SheratanTabId } from "./components/layout/Sidebar";
 
 function App() {
@@ -24,6 +27,9 @@ function App() {
       {activeTab === "projects" && <ProjectsTab />}
       {activeTab === "health" && <HealthTab />}
       {activeTab === "logs" && <LogsTab />}
+      {activeTab === "ops" && <OpsTab />}
+      {activeTab === "alerts" && <AlertsTab />}
+      {activeTab === "diagnostics" && <DiagnosticsTab />}
       {activeTab === "model" && <ModelInspectorTab />}
       {activeTab === "dependencies" && <DependencyMapTab />}
       {activeTab === "settings" && <SettingsTab />}

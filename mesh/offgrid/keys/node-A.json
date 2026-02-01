@@ -1,0 +1,11 @@
+{
+  "node_id": "node-A",
+  "ed25519": {
+    "signing_key": "7Jsq/Gqk6Y+ZbM/Jzr/IshaZ/qyL8XeXVhJdAMKj+f8=",
+    "verify_key": "sI3rOg3KKnS2sMKRb/A4YjJPmOq1s5zXKXZBx50x7v4="
+  },
+  "x25519": {
+    "private_key": "+QB+9TDZW/cUq3V/U2H/9QZYFLjRIpgVqugRWPlPd3g=",
+    "public_key": "7lB5BNVhw8TT1i4Kq5XdVOQjJfuupwYwxnixl7iwPh0="
+  }
+}

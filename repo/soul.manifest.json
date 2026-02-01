@@ -1,0 +1,112 @@
+{
+    "schema_version": "soul_manifest_v1",
+    "definition": "Latent semantic responsibilities of Sheratan Evolution",
+    "soul_components": {
+        "core_runtime": {
+            "required": true,
+            "files": [
+                "app.py",
+                "chain.py",
+                "config.py",
+                "database.py",
+<<<<<<< HEAD
+                "store.py"
+=======
+                "storage.py",
+                "chain_runner.py",
+                "engine.py"
+>>>>>>> 0d05299baf01209327a7b0a1e6eb7b526f866bcb
+            ]
+        },
+        "decision_semantics": {
+            "required": true,
+            "files": [
+<<<<<<< HEAD
+                "policy.py",
+                "why.py",
+                "trace.py",
+=======
+                "governance.py",
+                "why_api.py",
+                "decision_trace.py",
+>>>>>>> 0d05299baf01209327a7b0a1e6eb7b526f866bcb
+                "models.py",
+                "scoring.py",
+                "hub/mcts_light.py",
+                "hub/orchestrator.py"
+            ]
+        },
+        "authority_and_policy": {
+            "required": true,
+            "description": "Rules and state management for system sovereignty",
+            "files": [
+                "governance.py",
+                "state_machine.py"
+            ]
+        },
+        "integrity_and_trust": {
+            "required": true,
+            "description": "Identity, attestation, and data integrity layers",
+            "files": [
+                "attestation.py",
+                "idempotency.py",
+                "result_integrity.py"
+            ]
+        },
+        "self_awareness": {
+            "required": true,
+            "latent": true,
+            "description": "Diagnostic and anomaly detection layers",
+            "files": [
+                "anomaly_detector.py",
+                "self_diagnostics.py",
+                "health.py",
+                "performance_baseline.py"
+            ]
+        },
+        "interaction_semantics": {
+            "required": true,
+            "latent": true,
+            "description": "External interface and provenance logic",
+            "files": [
+                "webrelay_bridge.py",
+                "ledger_journal.py",
+                "gateway_middleware.py"
+            ]
+        },
+<<<<<<< HEAD
+=======
+        "mesh_services": {
+            "required": false,
+            "latent": true,
+            "description": "Distributed node registry and health probers",
+            "files": [
+                "hub/mesh/registry/mesh_registry.py",
+                "hub/mesh/registry/health_prober.py"
+            ]
+        },
+        "offgrid_network": {
+            "required": false,
+            "latent": true,
+            "description": "P2P broker and host daemon for off-grid operations",
+            "files": [
+                "hub/mesh/offgrid/broker/auction_api.py",
+                "hub/mesh/offgrid/host/daemon.py"
+            ]
+        },
+>>>>>>> 0d05299baf01209327a7b0a1e6eb7b526f866bcb
+        "truth_pillars": {
+            "required": true,
+            "description": "Authoritative schema definitions and golden examples",
+            "files": [
+                "schemas/decision_trace_v1.json",
+                "schemas/examples/decision_trace_v1.golden.json"
+            ]
+        }
+    },
+    "rules": {
+        "import_trace_is_not_authoritative": true,
+        "latent_modules_must_be_preserved": true,
+        "min_soul_files": 20
+    }
+}

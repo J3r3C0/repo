@@ -3,7 +3,7 @@
     "avg_job_latency_ms": {
       "1h": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -11,7 +11,7 @@
       },
       "24h": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -19,17 +19,43 @@
       },
       "7d": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
         "stddev": null
       }
     },
+    "degraded_state_entered": {
+      "1h": {
+        "count": 0,
+        "last_updated": "2026-01-21T10:47:20Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      },
+      "24h": {
+        "count": 1,
+        "last_updated": "2026-01-21T10:47:20Z",
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0,
+        "stddev": 0.0
+      },
+      "7d": {
+        "count": 1,
+        "last_updated": "2026-01-21T10:47:20Z",
+        "max": 1.0,
+        "mean": 1.0,
+        "min": 1.0,
+        "stddev": 0.0
+      }
+    },
     "job_success_rate": {
       "1h": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -37,7 +63,7 @@
       },
       "24h": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -45,7 +71,7 @@
       },
       "7d": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -55,7 +81,7 @@
     "llm_call_success_rate": {
       "1h": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -63,7 +89,7 @@
       },
       "24h": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -71,7 +97,7 @@
       },
       "7d": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -80,34 +106,60 @@
     },
     "state_transition_rate": {
       "1h": {
-        "count": 1,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "count": 12,
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": 0.0,
         "mean": 0.0,
         "min": 0.0,
         "stddev": 0.0
       },
       "24h": {
-        "count": 1,
-        "last_updated": "2026-01-16T07:24:07Z",
-        "max": 0.0,
-        "mean": 0.0,
+        "count": 40,
+        "last_updated": "2026-01-21T10:47:20Z",
+        "max": 1.0,
+        "mean": 0.025,
         "min": 0.0,
+        "stddev": 0.1561249499599599
+      },
+      "7d": {
+        "count": 40,
+        "last_updated": "2026-01-21T10:47:20Z",
+        "max": 1.0,
+        "mean": 0.025,
+        "min": 0.0,
+        "stddev": 0.1561249499599599
+      }
+    },
+    "time_in_paused": {
+      "1h": {
+        "count": 0,
+        "last_updated": "2026-01-21T10:47:20Z",
+        "max": null,
+        "mean": null,
+        "min": null,
+        "stddev": null
+      },
+      "24h": {
+        "count": 1,
+        "last_updated": "2026-01-21T10:47:20Z",
+        "max": 1299.5550994873047,
+        "mean": 1299.5550994873047,
+        "min": 1299.5550994873047,
         "stddev": 0.0
       },
       "7d": {
         "count": 1,
-        "last_updated": "2026-01-16T07:24:07Z",
-        "max": 0.0,
-        "mean": 0.0,
-        "min": 0.0,
+        "last_updated": "2026-01-21T10:47:20Z",
+        "max": 1299.5550994873047,
+        "mean": 1299.5550994873047,
+        "min": 1299.5550994873047,
         "stddev": 0.0
       }
     },
     "worker_availability": {
       "1h": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -115,7 +167,7 @@
       },
       "24h": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -123,7 +175,7 @@
       },
       "7d": {
         "count": 0,
-        "last_updated": "2026-01-16T07:24:07Z",
+        "last_updated": "2026-01-21T10:47:20Z",
         "max": null,
         "mean": null,
         "min": null,
@@ -136,10 +188,12 @@
     "avg_job_latency_ms",
     "state_transition_rate",
     "llm_call_success_rate",
-    "worker_availability"
+    "worker_availability",
+    "degraded_state_entered",
+    "time_in_paused"
   ],
   "schema_version": "performance_baselines_v1",
-  "timestamp": "2026-01-16T07:24:07Z",
+  "timestamp": "2026-01-21T10:47:20Z",
   "windows": [
     {
       "key": "1h",

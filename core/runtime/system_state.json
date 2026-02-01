@@ -3,15 +3,21 @@
   "health": {},
   "last_transition": {
     "actor": "system",
-    "event_id": "77b7bdbc-9c49-44b3-bf85-638445ca96ab",
+    "event_id": "ada2dec6-9474-4d68-966e-78ee16de81f4",
     "meta": {
-      "noop": true
+      "services": {
+        "Broker": "active",
+        "Core API": "active",
+        "Dashboard": "active",
+        "Host-A": "active",
+        "WebRelay": "down"
+      }
     },
-    "next_state": "PAUSED",
+    "next_state": "DEGRADED",
     "prev_state": "PAUSED",
-    "reason": "System shutdown initiated",
-    "ts": 1768548247.7787333
+    "reason": "Some services unavailable at startup",
+    "ts": 1768981042.9864607
   },
-  "since_ts": 1768548239.527302,
-  "state": "PAUSED"
+  "since_ts": 1768981042.9864607,
+  "state": "DEGRADED"
 }

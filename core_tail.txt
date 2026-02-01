@@ -1,0 +1,8 @@
+[database] Initialized at C:\neuer ordner für allgemein github pulls\Sheratan_V1_Consolidated\data\sheratan.db
+[database] Tables: 8
+[database] WAL mode: enabled
+Traceback (most recent call last):
+  File "C:\neuer ordner für allgemein github pulls\Sheratan_V1_Consolidated\core\main.py", line 542, in <module>
+    relay_out_dir=BASE_DIR / "external" / "webrelay" / "runtime" / "narrative",
+                  ^^^^^^^^
+NameError: name 'BASE_DIR' is not defined

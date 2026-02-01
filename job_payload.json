@@ -1,0 +1,1 @@
+{"kind": "walk_tree", "params": {"auto_dispatch": true, "name": "locate_lcp_debug_log", "pattern": "lcp_debug.log", "root": "/workspace/project"}, "_chain_hint": {"chain_id": "content_test_1768971958", "root_job_id": "8d937393-963d-4065-8189-821f49b2425b", "parent_job_id": "8d937393-963d-4065-8189-821f49b2425b", "spec_id": "7b5fc410a90243919ec29c5585cdca61", "role": "child"}}

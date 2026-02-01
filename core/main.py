@@ -79,7 +79,7 @@ from core.self_diagnostics import SelfDiagnosticEngine, DiagnosticConfig
 from core.anomaly_detector import AnomalyDetector
 from core.gateway_middleware import enforce_gateway, GatewayViolation
 from core.attestation import evaluate_attestation, verify_signature
-from core.config import RobustnessConfig
+from core.config import RobustnessConfig, BASE_DIR
 from core import storage, models, idempotency, result_integrity
 from core.idempotency import evaluate_idempotency, IdempotencyDecision, build_idempotency_conflict_detail
 from core.result_integrity import verify_or_migrate_hash, IntegrityError, compute_result_hash
@@ -672,8 +672,8 @@ async def gateway_violation_handler(request, exc: GatewayViolation):
 # ------------------------------------------------------------------------------
 
 relay_settings = WebRelaySettings(
-    relay_out_dir=storage.DATA_DIR.parent / "webrelay_out",
-    relay_in_dir=storage.DATA_DIR.parent / "webrelay_in",
+    relay_out_dir=BASE_DIR / "external" / "webrelay" / "runtime" / "narrative",
+    relay_in_dir=BASE_DIR / "external" / "webrelay" / "runtime" / "output",
     session_prefix="core_v2"
 )
 
@@ -1172,6 +1172,10 @@ def _handle_lcp_followup(job: models.Job):
     if not job.result or not isinstance(job.result, dict):
         return
 
+    # DEBUG: Log entry
+    with open("lcp_debug.log", "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now()}] _handle_lcp_followup called for job {job.id}\n")
+
     from core.lcp_actions import parse_lcp
     from core.context_updaters import update_context_from_job_result
     
@@ -1201,22 +1205,67 @@ def _handle_lcp_followup(job: models.Job):
         if artifact_key:
             print(f"[sync] Updated artifact '{artifact_key}' for chain {chain_id[:12]}")
 
+        # [RECURSIVE LOOP]
+        # If this job was created from a chain_spec, mark that spec as done
+        spec_id = job.payload.get("_chain_hint", {}).get("spec_id")
+        if spec_id:
+            storage.mark_chain_spec_done(conn, chain_id, spec_id, ok=(job.status == "completed"))
+            # Trigger runner to check for batch status
+            storage.set_chain_needs_tick(conn, chain_id, True)
+            print(f"[sync] Marked spec {spec_id[:8]} as done, triggered chain tick.")
+
     if followup or final:
         print(f"[sync] LCP envelope detected for job {job_id[:12]}...")
+        with open("lcp_debug.log", "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now()}] LCP ENVELOPE DETECTED for job {job_id}\n")
         
         # Ensure chain exists in manager (creates file if needed)
         chain_manager.ensure_chain(chain_id=chain_id, root_job_id=job_id)
         
         if followup:
+            # [ONE TASK PER TURN MODEL]
+            # Create a NEW Task for this action turn
+            import uuid
+            
+            # Find turn number
+            existing_tasks = []
+            if task:
+                with get_db() as conn:
+                    existing_tasks = conn.execute(
+                        "SELECT id FROM tasks WHERE mission_id = ?", 
+                        (task.mission_id,)
+                    ).fetchall()
+            
+            turn_num = (len(existing_tasks) // 2) + 1  # Logic: PlanTask, ActionTask, Plan, Action...
+            new_task_id = str(uuid.uuid4())
+            new_task_name = f"Step {turn_num}: Action Phase"
+            
+            if task:
+                new_task = models.Task(
+                    id=new_task_id,
+                    mission_id=task.mission_id,
+                    name=new_task_name,
+                    description=f"Follow-up actions proposed by LLM in job {job_id[:8]}",
+                    kind="action_phase",
+                    params={"parent_job_id": job_id, "chain_id": chain_id, "turn": turn_num},
+                    created_at=datetime.utcnow().isoformat() + "Z"
+                )
+                storage.create_task(new_task)
+                print(f"[sync] Created NEW Task {new_task_id[:8]} '{new_task_name}' for follow-ups")
+            
+            target_task_id = new_task_id if task else job.task_id
+
             # Register follow-up SPECS (not jobs!)
             print(f"[sync] Registering {len(followup.jobs)} followup specs...")
             chain_manager.register_followup_specs(
                 chain_id=chain_id,
-                task_id=job.task_id,
+                task_id=target_task_id,
                 root_job_id=job.payload.get("root_job_id") or job_id,
                 parent_llm_job_id=job_id,
                 job_specs=followup.jobs
             )
+            with open("lcp_debug.log", "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now()}] REGISTERED {len(followup.jobs)} followup specs for chain {chain_id}\n")
                 
         if final:
             # Mark chain as completed

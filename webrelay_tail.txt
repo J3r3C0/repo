@@ -1,0 +1,37 @@
+
+> v-mini-relay@1.0.0 start
+> node dist/index.js
+
+🤖 Using LLM Backend: chatgpt
+╔═══════════════════════════════════════════════════════╗
+║   Sheratan WebRelay v2.0 - Dual LLM Support         ║
+╚═══════════════════════════════════════════════════════╝
+
+[ROBOT] LLM Backend: chatgpt
+[DIR] Narrative: runtime/narrative (Gemini writes here)
+[DIR] Output: runtime/output (Worker results)
+
+
+╔═══════════════════════════════════════════════════════╗
+║   Sheratan WebRelay HTTP API v2.0                   ║
+╚═══════════════════════════════════════════════════════╝
+
+🌐 Server: http://0.0.0.0:3000
+🎯 LLM1 (Gemini): Writes to runtime/narrative
+🛡️ LLM2 (ChatGPT): Audits via /api/llm/call
+
+📡 Endpoints:
+   GET  /health              - Health check
+   POST /api/llm/call        - LLM2 Audit calls
+   POST /api/job/submit      - Submit UnifiedJob
+
+[MESH] ⚠ Registration failed: Error
+[MESH] Will retry on next startup...
+[FILES] File Watcher Mode:
+   OUT: C:\neuer ordner für allgemein github pulls\Sheratan_V1_Consolidated\external\webrelay\runtime\narrative
+   IN:  C:\neuer ordner für allgemein github pulls\Sheratan_V1_Consolidated\external\webrelay\runtime\output
+
+[WATCH] Watcher active on: C:\neuer ordner für allgemein github pulls\Sheratan_V1_Consolidated\external\webrelay\runtime\narrative
+
+[READY] WebRelay Ready! HTTP API + File Watcher + Mesh Registration Active
+

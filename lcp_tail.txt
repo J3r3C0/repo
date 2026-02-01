@@ -1,0 +1,4 @@
+[2026-01-21 05:27:04.575179] _handle_lcp_followup called for job 0ef7fdf7-4b5d-4181-9486-f1025f429131
+[2026-01-21 05:27:04.592251] LCP ENVELOPE DETECTED for job 0ef7fdf7-4b5d-4181-9486-f1025f429131
+[2026-01-21 05:27:04.627278] REGISTERED 1 followup specs for chain content_test_1768969475
+[2026-01-21 05:27:10.959441] _handle_lcp_followup called for job 490652af-a366-4f1b-8afb-c2d2db8f6f94

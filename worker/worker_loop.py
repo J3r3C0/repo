@@ -746,6 +746,10 @@ def handle_job(unified_job: dict) -> dict:
         result = read_file_batch_from_params(merged_params)
     elif kind == "write_file":
         result = write_file_from_params(merged_params)
+    elif kind == "append_file":
+        # Force mode=append for this kind
+        merged_params["mode"] = "append"
+        result = write_file_from_params(merged_params)
     elif kind == "rewrite_file":
         result = rewrite_file_from_params(job_id, merged_params, job_params)
     elif kind == "pdf_to_json":
@@ -810,8 +814,8 @@ def main_loop():
                 WorkerCapability(kind="write_file", cost=50),
                 WorkerCapability(kind="patch_file", cost=40),
                 WorkerCapability(kind="pdf_to_json", cost=20),
-                WorkerCapability(kind="agent_plan", cost=100),
-                WorkerCapability(kind="llm_call", cost=100),
+                # WorkerCapability(kind="agent_plan", cost=100),  # Handled by WebRelay
+                # WorkerCapability(kind="llm_call", cost=100),    # Handled by WebRelay
                 WorkerCapability(kind="walk_tree", cost=20),
                 WorkerCapability(kind="read_file_batch", cost=50),
             ]

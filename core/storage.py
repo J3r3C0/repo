@@ -555,9 +555,12 @@ def ensure_chain_context(
     now = _now_iso()
     conn.execute(
         """
-        INSERT OR IGNORE INTO chain_context
+        INSERT INTO chain_context
         (chain_id, task_id, state, limits_json, artifacts_json, error_json, needs_tick, created_at, updated_at)
         VALUES (?, ?, 'running', ?, ?, NULL, 0, ?, ?)
+        ON CONFLICT(chain_id) DO UPDATE SET
+            task_id=excluded.task_id,
+            updated_at=excluded.updated_at
         """,
         (chain_id, task_id, _json_dumps(limits), _json_dumps({}), now, now),
     )
@@ -922,6 +925,22 @@ def update_chain_tick_time(conn, chain_id: str) -> None:
         (now, now, chain_id),
     )
     conn.commit()
+
+def count_active_specs_for_chain(conn, chain_id: str) -> int:
+    """Return count of specs that are either pending or dispatched."""
+    row = conn.execute(
+        "SELECT COUNT(*) FROM chain_specs WHERE chain_id=? AND status IN ('pending', 'dispatched')",
+        (chain_id,),
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+def get_latest_chain_artifact(conn, chain_id: str, key: str) -> Optional[Any]:
+    """Retrieve a specific artifact's value from the chain context."""
+    ctx = get_chain_context(conn, chain_id)
+    if not ctx:
+        return None
+    art = (ctx.get("artifacts") or {}).get(key)
+    return art.get("value") if art else None
 
 def mark_chain_spec_done(conn, chain_id: str, spec_id: str, ok: bool, info: Optional[Dict[str, Any]] = None) -> None:
     """Mark spec as done/failed."""

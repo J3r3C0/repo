@@ -97,8 +97,17 @@ class ChainRunner:
                     # No pending specs? Double check if we should clear needs_tick
                     all_pending = self.storage.list_pending_chain_specs(conn, cid, limit=1)
                     if not all_pending:
-                        self.logger.info(f"[chain:{cid}] No more pending specs, clearing needs_tick.")
-                        self.storage.set_chain_needs_tick(conn, cid, False)
+                        # [RECURSIVE LOOP]
+                        # Check if ANY specs are still in flight (dispatched but not done)
+                        active_count = self.storage.count_active_specs_for_chain(conn, cid)
+                        if active_count == 0:
+                            self.logger.info(f"[chain:{cid}] No more active specs, triggering re-planning.")
+                            # Batch complete! Trigger next LLM turn
+                            self.chain_manager.dispatch_next_llm_step_specs(chain_id=cid)
+                            # We keep needs_tick=True so the NEW agent_plan spec is processed on next tick
+                        else:
+                            self.logger.info(f"[chain:{cid}] {active_count} specs still in flight, clearing needs_tick.")
+                            self.storage.set_chain_needs_tick(conn, cid, False)
                     continue
 
                 # 4. Process the spec

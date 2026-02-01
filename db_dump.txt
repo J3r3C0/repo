@@ -1,0 +1,22 @@
+spec_id                           chain_id                 status      kind             resolved  dispatched_job_id                   
+--------------------------------  -----------------------  ----------  ---------------  --------  ------------------------------------
+8cade07e215148c9964bb2a8bc2c21ed  content_test_1768969475  dispatched  walk_tree        1         490652af-a366-4f1b-8afb-c2d2db8f6f94
+bc0b9d8d4d374c2eb1ebf47f5cd1c93f  content_test_1768968359  dispatched  walk_tree        1         1984df5b-8e6b-46c8-8bcd-3b1c89e62126
+417d3f8f73034f6f96f18cd0bbe92370  content_test_1768967576  dispatched  walk_tree        1         573d6303-5dfe-49dc-baa1-7d6d92d7f2c3
+6bde749de7fb4260b9f0e3827de9aaa1  content_test_1768967576  dispatched  read_file        1         0a02e451-aab2-43c5-b2fd-03ea1556649c
+b9468514694f4bde9b418d5485c2bc60  content_test_1768967576  dispatched  analysis_result  1         388a7483-80f6-490b-8fe8-ea3dde9ba2c1
+7acadef5f7e9473ca304050adaefb76d  content_test_1768966915  dispatched  walk_tree        1         27c5e49b-b445-4a5f-8530-98b940950d3c
+08e2455f5ff34a2c84dc4b9dc8546a96  content_test_1768966915  dispatched  read_file        1         7b1dcdf0-d4d5-408c-b33a-7fdaa4dd47d2
+570146731f29404f875fccde1fc1dab5  content_test_1768966915  dispatched  analysis_result  1         77695f2c-45ef-415f-950a-05928b62dfd3
+id                                    status     created_at                      
+------------------------------------  ---------  --------------------------------
+490652af-a366-4f1b-8afb-c2d2db8f6f94  completed  2026-01-21T04:27:05.311635+00:00
+0ef7fdf7-4b5d-4181-9486-f1025f429131  completed  2026-01-21T04:24:39.414856Z     
+1984df5b-8e6b-46c8-8bcd-3b1c89e62126  completed  2026-01-21T04:08:25.472017+00:00
+221ec020-1d3b-441b-9c3a-9a2f4387ed90  completed  2026-01-21T04:06:03.283742Z     
+388a7483-80f6-490b-8fe8-ea3dde9ba2c1  completed  2026-01-21T03:55:22.023225+00:00
+0a02e451-aab2-43c5-b2fd-03ea1556649c  failed     2026-01-21T03:55:21.980704+00:00
+573d6303-5dfe-49dc-baa1-7d6d92d7f2c3  completed  2026-01-21T03:55:21.941521+00:00
+fd16be89-b739-4ac0-8ca3-8e523bb3ed03  completed  2026-01-21T03:53:00.049105Z     
+77695f2c-45ef-415f-950a-05928b62dfd3  completed  2026-01-21T03:44:23.392791+00:00
+7b1dcdf0-d4d5-408c-b33a-7fdaa4dd47d2  failed     2026-01-21T03:44:23.324175+00:00

@@ -10,6 +10,7 @@ import time
 import uuid
 import hashlib
 import tempfile
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from core.chain_index import ChainIndex
@@ -634,6 +635,95 @@ class JobChainManager:
             self.logger.info(f"[chain:{chain_id}] created next agent_plan job: {llm_job_id}")
 
         return llm_job_id
+
+        return llm_job_id
+
+    def dispatch_next_llm_step_specs(self, *, chain_id: str, constraint_violation: Optional[str] = None) -> List[str]:
+        """
+        [Phase 10.1 / Phase 2.0]
+        Registers an 'agent_plan' spec in the chain_specs table.
+        This closes the recursive loop for database-managed chains.
+        """
+        from core.database import get_db
+        from core import storage
+        
+        with get_db() as conn:
+            ctx = storage.get_chain_context(conn, chain_id)
+            if not ctx:
+                return []
+                
+            # Aggregate Context for LLM
+            # [PHASE 2.0] Context aggregation from ALL tasks in mission
+            artifacts = ctx.get("artifacts") or {}
+            
+            # Recover orignal user request
+            prev_task = storage.get_task(ctx["task_id"])
+            mission_id = prev_task.mission_id if prev_task else "unknown"
+            user_request = prev_task.params.get("user_request") if (prev_task and prev_task.params) else "Recursive Planning Step"
+            
+            # [ONE TASK PER TURN MODEL]
+            # Create a NEW Task for this PLANNING turn
+            import uuid
+            from core import models
+            
+            existing_tasks = conn.execute(
+                "SELECT id FROM tasks WHERE mission_id = ?", 
+                (mission_id,)
+            ).fetchall()
+            
+            turn_num = (len(existing_tasks) // 2) + 1
+            new_task_id = str(uuid.uuid4())
+            new_task_name = f"Step {turn_num}: Planning Phase"
+            
+            new_task = models.Task(
+                id=new_task_id,
+                mission_id=mission_id,
+                name=new_task_name,
+                description=f"AI Agent deciding next actions for Step {turn_num}",
+                kind="planning_phase",
+                params={"chain_id": chain_id, "turn": turn_num, "user_request": user_request},
+                created_at=datetime.utcnow().isoformat() + "Z"
+            )
+            storage.create_task(new_task)
+            if self.logger:
+                self.logger.info(f"[chain:{chain_id}] Created NEW Planning Task {new_task_id[:8]} for turn {turn_num}")
+
+            llm_input = {
+                "user_request": user_request,
+                "artifacts_available": list(artifacts.keys()),
+                "context_summary": {
+                    "file_list_count": len(artifacts.get("file_list", {}).get("value", [])),
+                    "file_blobs_count": len(artifacts.get("file_blobs", {}).get("value", {}))
+                }
+            }
+            
+            if constraint_violation:
+                llm_input["constraint_violation"] = constraint_violation
+
+            # Register as SPEC
+            # We use the NEW task_id
+            inserted = storage.append_chain_specs(
+                conn,
+                chain_id=chain_id,
+                task_id=new_task_id,
+                root_job_id=chain_id, 
+                parent_job_id="root",
+                specs=[{
+                    "kind": "agent_plan",
+                    "params": {
+                        "input": llm_input,
+                        "chain_id": chain_id,
+                        "lcp_version": "v1"
+                    }
+                }]
+            )
+            
+            if inserted:
+                storage.set_chain_needs_tick(conn, chain_id, True)
+                if self.logger:
+                    self.logger.info(f"[chain:{chain_id}] Registered RECURSIVE agent_plan spec: {inserted}")
+            
+            return inserted
 
     def close_chain(self, *, chain_id: str, final_answer: Dict[str, Any]) -> None:
         """Mark chain as DONE with final answer."""

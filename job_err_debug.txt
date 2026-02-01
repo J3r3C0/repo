@@ -1,0 +1,3 @@
+    id = e890a820-cada-4db8-884c-e42f9476cfcd
+status = failed
+result = {"ok": false, "action": "error", "error": "No SHERATAN_LLM_BASE_URL configured", "worker_id": "default_worker"}

@@ -1,0 +1,1 @@
+${synthesize_hardening_report.report}

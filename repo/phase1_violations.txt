@@ -1,0 +1,86 @@
+[verify_phase1] FAIL: violations found
+
+- core\anomaly_detector.py:4 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\anomaly_detector.py:203 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\anomaly_detector.py:245 [FORBIDDEN_KEYWORD] Matched: \bwebrelay\b
+- core\attestation.py:4 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\candidate_schema.py:2 [FORBIDDEN_KEYWORD] Matched: \bmcts\b
+- core\chain_index.py:4 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\chain_runner.py:1 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\chain_runner.py:10 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\chain_runner.py:116 [FORBIDDEN_KEYWORD] Matched: \bdispatch\b
+- core\config.py:4 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\config.py:10 [CALL_TIME_TIME] Matched: \btime\.time\s*\(
+- core\config.py:77 [FORBIDDEN_KEYWORD] Matched: \bdashboard\b
+- core\config.py:79 [FORBIDDEN_KEYWORD] Matched: \bmesh\b
+- core\context_updaters.py:14 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\core_heartbeat.py:6 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\database.py:183 [FORBIDDEN_KEYWORD] Matched: \bgateway\b
+- core\decision_trace.py:12 [FORBIDDEN_KEYWORD] Matched: \bmcts\b
+- core\envelope.py:5 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\envelope.py:7 [FORBIDDEN_KEYWORD] Matched: \bmesh\b
+- core\envelope.py:8 [FORBIDDEN_KEYWORD] Matched: \bwebrelay\b
+- core\envelope.py:53 [FORBIDDEN_KEYWORD] Matched: \bmission\b
+- core\events.py:2 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\gateway_middleware.py:2 [FORBIDDEN_KEYWORD] Matched: \bgateway\b
+- core\gateway_middleware.py:4 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\gateway_middleware.py:5 [FORBIDDEN_KEYWORD] Matched: \bmesh\b
+- core\gateway_middleware.py:19 [FORBIDDEN_IMPORT] core imports forbidden prefix 'mesh' via 'mesh.core.gates.pipeline'
+- core\gateway_middleware.py:20 [FORBIDDEN_IMPORT] core imports forbidden prefix 'mesh' via 'mesh.core.gates.config'
+- core\gateway_middleware.py:21 [FORBIDDEN_IMPORT] core imports forbidden prefix 'mesh' via 'mesh.core.gates.models'
+- core\gateway_middleware.py:136 [FORBIDDEN_KEYWORD] Matched: \btask\b
+- core\health.py:3 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\health.py:19 [FORBIDDEN_KEYWORD] Matched: \bwebrelay\b
+- core\health.py:20 [FORBIDDEN_KEYWORD] Matched: \bbroker\b
+- core\health.py:23 [FORBIDDEN_KEYWORD] Matched: \bdashboard\b
+- core\health.py:98 [CALL_TIME_TIME] Matched: \btime\.time\s*\(
+- core\heartbeat_monitor.py:3 [FORBIDDEN_KEYWORD] Matched: \bdashboard\b
+- core\heartbeat_monitor.py:5 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\heartbeat_monitor.py:22 [CALL_TIME_TIME] Matched: \btime\.time\s*\(
+- core\heartbeat_monitor.py:42 [FORBIDDEN_KEYWORD] Matched: \bwebrelay\b
+- core\heartbeat_monitor.py:43 [FORBIDDEN_KEYWORD] Matched: \bmesh\b
+- core\idempotency.py:17 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\job_chain_manager.py:3 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\job_chain_manager.py:9 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\job_chain_manager.py:60 [FORBIDDEN_KEYWORD] Matched: \bdispatcher\b
+- core\job_chain_manager.py:109 [CALL_TIME_TIME] Matched: \btime\.time\s*\(
+- core\job_chain_manager.py:526 [FORBIDDEN_KEYWORD] Matched: \bdispatch\b
+- core\lcp_actions.py:4 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\ledger_journal.py:6 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\ledger_journal.py:28 [CALL_TIME_TIME] Matched: \btime\.time\s*\(
+- core\metrics_client.py:4 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\models.py:65 [FORBIDDEN_KEYWORD] Matched: \bmission\b
+- core\models.py:107 [FORBIDDEN_KEYWORD] Matched: \btask\b
+- core\models.py:145 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\performance_baseline.py:8 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\performance_baseline.py:90 [CALL_TIME_TIME] Matched: \btime\.time\s*\(
+- core\rate_limiter.py:6 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\replay_engine.py:62 [FORBIDDEN_KEYWORD] Matched: \bdispatcher\b
+- core\robust_parser.py:301 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\self_diagnostics.py:5 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\self_diagnostics.py:119 [CALL_TIME_TIME] Matched: \btime\.time\s*\(
+- core\self_diagnostics.py:237 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\self_diagnostics.py:247 [FORBIDDEN_KEYWORD] Matched: \bwebrelay\b
+- core\state_machine.py:19 [FORBIDDEN_KEYWORD] Matched: \bwebrelay\b
+- core\state_machine.py:29 [FORBIDDEN_MODULE] core imports 'time' (determinism violation)
+- core\state_machine.py:67 [FORBIDDEN_KEYWORD] Matched: \bscheduler\b
+- core\state_machine.py:149 [CALL_TIME_TIME] Matched: \btime\.time\s*\(
+- core\storage.py:98 [FORBIDDEN_KEYWORD] Matched: \bmission\b
+- core\storage.py:159 [FORBIDDEN_KEYWORD] Matched: \btask\b
+- core\storage.py:223 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\template_resolver.py:3 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\webrelay_bridge.py:13 [FORBIDDEN_KEYWORD] Matched: \bmesh\b
+- core\webrelay_bridge.py:15 [FORBIDDEN_IMPORT] core imports forbidden prefix 'mesh' via 'mesh.registry.client'
+- core\webrelay_bridge.py:16 [FORBIDDEN_IMPORT] core imports forbidden prefix 'mesh' via 'mesh.registry.mesh_registry'
+- core\webrelay_bridge.py:33 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\webrelay_bridge.py:39 [FORBIDDEN_KEYWORD] Matched: \bwebrelay\b
+- core\webrelay_bridge.py:70 [FORBIDDEN_KEYWORD] Matched: \btask\b
+- core\webrelay_bridge.py:110 [FORBIDDEN_KEYWORD] Matched: \bmission\b
+- core\webrelay_bridge.py:219 [FORBIDDEN_KEYWORD] Matched: \bdispatch\b
+- core\webrelay_http_client.py:3 [FORBIDDEN_KEYWORD] Matched: \bwebrelay\b
+- core\webrelay_http_client.py:41 [FORBIDDEN_KEYWORD] Matched: \bmission\b
+- core\webrelay_llm_client.py:3 [FORBIDDEN_KEYWORD] Matched: \bwebrelay\b
+- core\why_api.py:46 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+- core\why_api_test.py:66 [FORBIDDEN_KEYWORD] Matched: \bjob\b
+
+[verify_phase1] Hint: Move agent/orchestration logic to hub/. Core must stay perception-only.

@@ -1,31 +1,42 @@
-# repo/core/config.py
+from pathlib import Path
 import os
 import sys
-from pathlib import Path
 from dotenv import load_dotenv
 
+# Load environment variables from .env
 load_dotenv()
 
+# Base directory for read-only resources (works for dev and PyInstaller)
 def get_resource_path(relative_path: str = "") -> Path:
-    """Robust path resolution for both dev and frozen (PyInstaller) states."""
-    if getattr(sys, 'frozen', False):
+    try:
+        import sys
         base_path = Path(sys._MEIPASS)
-    else:
-        # Assuming we are in repo/core/
+    except Exception:
         base_path = Path(__file__).parent.parent
     return (base_path / relative_path).resolve()
 
 BASE_DIR = get_resource_path("")
 
-# Persistent Data Management
-DATA_DIR = Path(os.getenv("SHERATAN_DATA_DIR", "data")).resolve()
+# Persistent Data directory (lives next to EXE in production)
 if getattr(sys, 'frozen', False):
-    # In production, default next to EXE unless env is set
-    DATA_DIR = Path(os.getenv("SHERATAN_DATA_DIR", str(Path(sys.executable).parent / "data"))).resolve()
+    PERSISTENT_ROOT = Path(sys.executable).parent
+else:
+    PERSISTENT_ROOT = Path(__file__).parent.parent
 
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = PERSISTENT_ROOT / "data"
 DB_PATH = DATA_DIR / "sheratan.db"
 
-# Core Start Time
-import time
-CORE_START_TIME = time.time()
+# Ensure data directory exists
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+def _f(name: str, default: float) -> float:
+    return float(os.getenv(name, str(default)))
+
+def _i(name: str, default: int) -> int:
+    return int(os.getenv(name, str(default)))
+
+class PortsConfig:
+    """Core Perception Ports."""
+    CORE_API = _i("SHERATAN_CORE_PORT", 8001)
+
+

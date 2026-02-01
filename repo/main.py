@@ -26,9 +26,13 @@ def setup_logging():
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     )
 
+app = create_app()
+
 def main():
+    from core.config import PortsConfig
+    
     parser = argparse.ArgumentParser(description="Sheratan Core Evolution")
-    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8001)), help="Port to run on")
+    parser.add_argument("--port", type=int, default=PortsConfig.CORE_API, help="Port to run on")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     args = parser.parse_args()
@@ -37,8 +41,8 @@ def main():
     logger = logging.getLogger("main")
     logger.info(f"Starting Sheratan Core Evolution on {args.host}:{args.port}")
 
-    app = create_app()
     uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
+
 
 if __name__ == "__main__":
     main()

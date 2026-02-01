@@ -265,6 +265,7 @@ class SystemStateMachine:
             # from PAUSED
             (A.PAUSED, A.RECOVERY),
             (A.PAUSED, A.OPERATIONAL),
+            (A.PAUSED, A.DEGRADED),
 
             # operational transitions
             (A.OPERATIONAL, A.DEGRADED),

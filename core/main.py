@@ -38,16 +38,20 @@ def normalize_trace_result(result):
     if "metrics" not in r: r["metrics"] = {}
     if "score" not in r: r["score"] = 1.0
     return r
+import asyncio
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Request
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from typing import List, Optional
 import sys
 import os
 from pathlib import Path
+
+from core.config import BASE_DIR
+SHERATAN_ROOT = BASE_DIR
 
 # Force UTF-8 for Windows shell logging
 if sys.stdout.encoding != 'utf-8':
@@ -58,9 +62,8 @@ if sys.stdout.encoding != 'utf-8':
         pass
 
 # Add parent directory to sys.path so 'core' module can be imported
-_parent_dir = Path(__file__).parent.parent
-if str(_parent_dir) not in sys.path:
-    sys.path.insert(0, str(_parent_dir))
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 from core.database import get_db, init_db
 from core import models
@@ -85,12 +88,26 @@ import os
 import psutil
 import socket
 import time
+import webbrowser
+import threading
+
+def _rotate_log(path: Path, max_bytes: int = 10 * 1024 * 1024):
+    """Simple log rotation by size capping."""
+    try:
+        if path.exists() and path.stat().st_size > max_bytes:
+            backup = path.with_suffix(".jsonl.bak")
+            if backup.exists():
+                backup.unlink()
+            path.rename(backup)
+    except Exception as e:
+        print(f"[log] Rotation failed for {path.name}: {e}")
 
 def _audit_log(event: str, details: dict):
-    """Standardized Security Audit Logging for Track A2."""
+    """Standardized Security Audit Logging for Track A2 with rotation."""
     try:
         audit_file = storage.DATA_DIR / "logs" / "hub_security_audit.jsonl"
         audit_file.parent.mkdir(parents=True, exist_ok=True)
+        _rotate_log(audit_file)
         entry = {
             "ts": datetime.utcnow().isoformat() + "Z",
             "event": event,
@@ -102,10 +119,11 @@ def _audit_log(event: str, details: dict):
         print(f"[audit] Failed to write audit log: {e}")
 
 def _alert_log(event: str, details: dict):
-    """Standardized Alert Logging for Track A3."""
+    """Standardized Alert Logging for Track A3 with rotation."""
     try:
         alert_file = storage.DATA_DIR / "logs" / "alerts.jsonl"
         alert_file.parent.mkdir(parents=True, exist_ok=True)
+        _rotate_log(alert_file)
         entry = {
             "ts": datetime.utcnow().isoformat() + "Z",
             "event": event,
@@ -119,8 +137,9 @@ def _alert_log(event: str, details: dict):
 from core.policy_engine import PolicyEngine
 policy_engine = PolicyEngine()
 
+from core.health import health_manager
 rate_limiter = RateLimiter()
-CORE_START_TIME = time.time()
+from core.config import CORE_START_TIME
 
 # --- Track B2: Idempotency Metrics (In-Memory) ---
 # In-memory counters for performance visibility
@@ -129,6 +148,92 @@ IDEMPOTENCY_COLLISIONS_COUNTER = 0
 INTEGRITY_FAILURES_COUNTER = 0
 HASH_WRITES_COUNTER = 0
 HASH_MIGRATIONS_COUNTER = 0
+
+class SLOManager:
+    """Automated SLO monitoring and alerting (Track C2)."""
+    def __init__(self, check_interval_sec: int = 60):
+        self.check_interval_sec = check_interval_sec
+        self._last_integrity_failures = 0
+        self._last_completed_count = 0
+        self._last_completed_ts = time.time()
+        self._last_job_count = 0
+        self._running = False
+        self.active_violations = [] # Track current SLO issues
+
+    async def run_loop(self):
+        self._running = True
+        # Initialize baselines to avoid alert storm at startup
+        self._last_integrity_failures = INTEGRITY_FAILURES_COUNTER
+        all_jobs = storage.list_jobs()
+        self._last_completed_count = len([j for j in all_jobs if j.status == "completed"])
+        self._last_job_count = len(all_jobs)
+        self._last_completed_ts = time.time()
+        
+        print(f"[slo] Monitoring loop started (interval={self.check_interval_sec}s)")
+        while self._running:
+            try:
+                await self.evaluate_slos()
+            except Exception as e:
+                print(f"[slo] Evaluation error: {e}")
+            await asyncio.sleep(self.check_interval_sec)
+
+    async def evaluate_slos(self):
+        # 1. Queue Depth
+        pending = storage.count_pending_jobs()
+        max_q = RobustnessConfig.MAX_QUEUE_DEPTH
+        if pending >= max_q:
+            _alert_log("SLO_QUEUE_CRITICAL", {"pending": pending, "max": max_q, "status": "SATURATED"})
+        elif pending >= max_q * 0.8:
+            _alert_log("SLO_QUEUE_WARNING", {"pending": pending, "max": max_q, "status": "HIGH_LOAD"})
+
+        # 2. Inflight Saturation
+        inflight = storage.count_inflight_jobs()
+        max_i = RobustnessConfig.MAX_INFLIGHT
+        if inflight >= max_i:
+            _alert_log("SLO_INFLIGHT_CRITICAL", {"inflight": inflight, "max": max_i})
+        elif inflight >= max_i * 0.8:
+            _alert_log("SLO_INFLIGHT_WARNING", {"inflight": inflight, "max": max_i})
+
+        # 3. Integrity
+        global INTEGRITY_FAILURES_COUNTER
+        if INTEGRITY_FAILURES_COUNTER > self._last_integrity_failures:
+            diff = INTEGRITY_FAILURES_COUNTER - self._last_integrity_failures
+            _alert_log("SLO_INTEGRITY_FAILURE", {"new_failures": diff, "total": INTEGRITY_FAILURES_COUNTER})
+            self._last_integrity_failures = INTEGRITY_FAILURES_COUNTER
+
+        # 4. Stall Detection
+        all_jobs = storage.list_jobs()
+        completed_count = len([j for j in all_jobs if j.status == "completed"])
+        has_pending = pending > 0
+        now = time.time()
+        
+        if completed_count > self._last_completed_count:
+            # Progress detected
+            self._last_completed_count = completed_count
+            self._last_completed_ts = now
+        elif has_pending and (now - self._last_completed_ts > 600): # 10 minutes
+            # Queue is NOT moving
+            _alert_log("SLO_STALL_DETECTED", {
+                "last_completion_age_sec": int(now - self._last_completed_ts),
+                "pending_jobs": pending
+            })
+
+        # 5. Burst Detection
+        new_jobs = len(all_jobs) - self._last_job_count
+        if new_jobs > 50: # Scale based on your needs
+             _alert_log("SLO_BURST_DETECTED", {"count": new_jobs, "interval_sec": self.check_interval_sec})
+        self._last_job_count = len(all_jobs)
+
+        # 6. Update Health Summary (Internal)
+        self.active_violations = []
+        if pending >= max_q: self.active_violations.append("QUEUE_SATURATED")
+        if inflight >= max_i: self.active_violations.append("INFLIGHT_SATURATED")
+        if has_pending and (now - self._last_completed_ts > 600): self.active_violations.append("STALL_DETECTED")
+            
+    def stop(self):
+        self._running = False
+
+slo_manager = SLOManager(check_interval_sec=60)
 
 class Dispatcher:
     """Central dispatcher for Priority Queuing and Rate Limiting."""
@@ -158,7 +263,7 @@ class Dispatcher:
                         # Robust check
                         m_status = getattr(m, 'status', None)
                         if m_status == "planned":
-                            print(f"[dispatcher] ⚡ Auto-activating planned mission {m.id[:8]}")
+                            print(f"[dispatcher] [SYNC] Auto-activating planned mission {m.id[:8]}")
                             m.status = "active"
                             storage.update_mission(m)
                         elif m_status is None:
@@ -175,9 +280,9 @@ class Dispatcher:
             import traceback
             print(f"[dispatcher] LOOP CRASH ❌ {repr(e)}")
             traceback.print_exc()
-        finally:
-            self._running = False
-            print("[dispatcher] running flag cleared")
+    def stop(self):
+        self._running = False
+        print("[dispatcher] stop signal sent")
     
     def is_running(self) -> bool:
         t = getattr(self, "_thread", None)
@@ -187,7 +292,7 @@ class Dispatcher:
         # 0. Reap expired leases BEFORE dispatching to free up capacity
         reaped = storage.reap_expired_leases()
         if reaped > 0:
-             print(f"[dispatcher] Reaped {reaped} expired leases before dispatch.")
+             print(f"[dispatcher] [REAP] Reaped {reaped} expired leases before dispatch.")
 
         # 1. Get Pending Jobs
         all_jobs = storage.list_jobs()
@@ -198,7 +303,7 @@ class Dispatcher:
         # 1.5 Backpressure Gate (Inflight)
         inflight_count = storage.count_inflight_jobs()
         if inflight_count >= RobustnessConfig.MAX_INFLIGHT:
-            print(f"[dispatcher] ⚠ Inflight saturated ({inflight_count}/{RobustnessConfig.MAX_INFLIGHT}). Deferring dispatch.")
+            print(f"[dispatcher] [WARN] Inflight saturated ({inflight_count}/{RobustnessConfig.MAX_INFLIGHT}). Deferring dispatch.")
             # Rate limit audit events to avoid spam
             now = time.time()
             if not hasattr(self, "_last_saturated_audit") or now - self._last_saturated_audit > 10:
@@ -240,7 +345,7 @@ class Dispatcher:
                     self.bridge.enqueue_job(job.id)
                     
                     # Phase 2: Only if successful, move status to working
-                    print(f"[dispatcher] 🚀 Dispatched job {job.id[:8]} (priority={job.priority})")
+                    print(f"[dispatcher] [DISPATCH] Dispatched job {job.id[:8]} (priority={job.priority})")
                     job.status = "working"
                     job.updated_at = datetime.utcnow().isoformat() + "Z"
                     storage.update_job(job)
@@ -278,13 +383,13 @@ class Dispatcher:
                     
                 except ValueError as ve:
                     # Orphaned job (missing task/mission) - mark as failed
-                    print(f"[dispatcher] ⚠️ Orphaned job {job.id[:8]}: {ve}")
+                    print(f"[dispatcher] [WARN] Orphaned job {job.id[:8]}: {ve}")
                     job.status = "failed"
                     job.result = {"ok": False, "error": f"Orphaned job: {str(ve)}"}
                     job.updated_at = datetime.utcnow().isoformat() + "Z"
                     storage.update_job(job)
                 except Exception as e:
-                    print(f"[dispatcher] ❌ FAILED to dispatch job {job.id[:8]}: {e}")
+                    print(f"[dispatcher] [FAIL] FAILED to dispatch job {job.id[:8]}: {e}")
                     # Job remains in 'pending', will be retried next loop unless fixed
             else:
                 # Stop dispatching this batch if source is limited
@@ -318,11 +423,11 @@ class Dispatcher:
                         storage.update_job(synced)
                         
                         _audit_log("RETRY_SCHEDULED", {"job_id": synced.id, "attempts": synced.retry_count, "next_retry": synced.next_retry_utc})
-                        print(f"[dispatcher] ↺ Job {job.id[:8]} failed. Scheduled for retry {synced.retry_count}/{max_retries} at {synced.next_retry_utc}")
+                        print(f"[dispatcher] [RETRY] Job {job.id[:8]} failed. Scheduled for retry {synced.retry_count}/{max_retries} at {synced.next_retry_utc}")
                         continue
                     else:
                         _audit_log("RETRY_EXHAUSTED", {"job_id": synced.id, "attempts": synced.retry_count})
-                        print(f"[dispatcher] ❌ Job {job.id[:8]} failed after {max_retries} attempts.")
+                        print(f"[dispatcher] [FAIL] Job {job.id[:8]} failed after {max_retries} attempts.")
                 
                 # Final result (success or max failure)
                 print(f"[dispatcher] ✓ Job {job.id[:8]} finished with status: {synced.status}")
@@ -386,7 +491,7 @@ async def lifespan(app: FastAPI):
     # 0. Initialize Database Schema (FIRST - before anything else)
     print("[database] Initializing schema...")
     init_db()
-    print("[database] Schema initialization complete ✅")
+    print("[database] Schema initialization complete [OK]")
     
     # 0.1 Reap expired leases (Safety cleanup)
     reaped = storage.reap_expired_leases()
@@ -419,9 +524,9 @@ async def lifespan(app: FastAPI):
         print("[dispatcher] starting ...")
         dispatcher.start()
         print(f"[dispatcher] is_running={dispatcher.is_running()}")
-        print("[dispatcher] started ✅")
+        print("[dispatcher] started [OK]")
     except Exception as e:
-        print(f"[dispatcher] FAILED TO START ❌ {repr(e)}")
+        print(f"[dispatcher] FAILED TO START [FAIL] {repr(e)}")
         traceback.print_exc()
         try:
             state_machine.transition(
@@ -437,27 +542,30 @@ async def lifespan(app: FastAPI):
     try:
         print("[chain_runner] starting ...")
         chain_runner.start()
-        print("[chain_runner] started ✅")
+        print("[chain_runner] started [OK]")
     except Exception as e:
-        print(f"[chain_runner] FAILED TO START ❌ {repr(e)}")
+        print(f"[chain_runner] FAILED TO START [FAIL] {repr(e)}")
         import traceback
         traceback.print_exc()
+    
+    # 5.1 Start SLO Monitoring Task
+    slo_task = asyncio.create_task(slo_manager.run_loop())
     
     # 4. Transition to OPERATIONAL if health checks pass
     try:
         # Quick health check
-        health = await _evaluate_system_health()
+        health = await health_manager.evaluate_full_health()
         if health["overall"] == "operational":
             state_machine.transition(
                 SystemState.OPERATIONAL,
                 reason="All core services started successfully",
                 meta={"services": health["services"]}
             )
-        elif health["overall"] == "degraded":
+        else:
             state_machine.transition(
                 SystemState.DEGRADED,
-                reason="Some services unavailable at startup",
-                meta={"services": health["services"]}
+                reason="System health check failed at startup",
+                meta={"services": health["services"], "critical_down": health["critical_down"]}
             )
     except Exception as e:
         print(f"[state] Warning: Could not evaluate health at startup: {e}")
@@ -465,19 +573,25 @@ async def lifespan(app: FastAPI):
     yield
     
     # Clean up
-    diagnostic_engine.stop()
-    print(f"[diagnostic] Self-diagnostic engine stopped")
+    try:
+        dispatcher.stop()
+        chain_runner.stop()
+        slo_manager.stop()
+        if 'slo_task' in locals():
+            slo_task.cancel()
+        diagnostic_engine.stop()
+        print("[core] all services stopped")
+    except Exception as e:
+        print(f"[core] warning during cleanup: {e}")
     
     baseline_tracker.persist(recompute=True)
     print(f"[baseline] Performance baselines persisted on shutdown")
     
     state_machine.transition(
         SystemState.PAUSED,
-        reason="System shutdown initiated",
+        reason="System shutdown complete",
         actor="system"
     )
-    dispatcher._running = False
-    chain_runner.stop()
 
 # ------------------------------------------------------------------------------
 # APP INITIALISIERUNG
@@ -486,7 +600,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Sheratan Core v2",
     description="Mission/Task/Job orchestration kernel with WebRelay & LCP",
-    version="2.0.0",
+    version="0.3.0",
     lifespan=lifespan
 )
 
@@ -499,8 +613,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static files (HTML dashboards)
-# Mount current directory to serve selfloop-dashboard.html etc.
+# Static Dashboard (Track D)
+dist_dir = BASE_DIR / "external" / "dashboard" / "dist"
+
+@app.get("/ui", include_in_schema=False)
+@app.get("/ui/{path:path}", include_in_schema=False)
+async def serve_dashboard(path: str = ""):
+    """Serve the React dashboard with SPA fallback (Track D)."""
+    if not dist_dir.exists():
+        return JSONResponse({"error": f"Dashboard build not found at {dist_dir}. Please ensure it is bundled or built."}, status_code=404)
+    
+    file_path = dist_dir / path
+    if path and file_path.exists() and file_path.is_file():
+        return FileResponse(file_path)
+    
+    # SPA Fallback: Serve index.html for all other /ui routes
+    index_file = dist_dir / "index.html"
+    if not index_file.exists():
+        return JSONResponse({"error": "index.html not found in dist"}, status_code=404)
+    return FileResponse(index_file)
+
+# Keep legacy static mount for other internal files
 _this_dir = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=str(_this_dir), html=True), name="static")
 
@@ -1327,59 +1460,6 @@ def list_project_files(project_id: str):
     return get_tree(project_path)
 
 
-# ------------------------------------------------------------------------------
-# SYSTEM HEALTH & METRICS
-# ------------------------------------------------------------------------------
-
-@app.get("/api/system/metrics")
-def get_system_metrics():
-    """Returns real CPU, RAM and Queue length metrics."""
-    try:
-        cpu = psutil.cpu_percent(interval=None)
-        memory = psutil.virtual_memory().percent
-        
-        # Robustness Metrics (Track B1) - Timezone-safe
-        now_utc_iso = datetime.now(timezone.utc).isoformat()
-        queue_depth = storage.count_pending_jobs()
-        inflight = storage.count_inflight_jobs()
-        ready_to_dispatch = storage.count_ready_jobs(now_utc_iso)
-        
-        # Simple error rate: failed jobs / total jobs (last 100)
-        all_jobs = storage.list_jobs()
-        recent_jobs = all_jobs[-100:]
-        failed = len([j for j in recent_jobs if j.status in ("failed", "error")])
-        error_rate = round((failed / len(recent_jobs) * 100) if recent_jobs else 0, 2)
-
-        return {
-            "status": "operational",
-            "cpu": cpu,
-            "memory": memory,
-            "queue_depth": queue_depth,
-            "inflight": inflight,
-            "ready_to_dispatch": ready_to_dispatch,
-            "error_rate": error_rate,
-            
-            # --- IDEMPOTENCY METRICS (B2) ---
-            "idempotent_hits_1m": IDEMPOTENT_HITS_COUNTER,
-            "idempotent_collisions_1m": IDEMPOTENCY_COLLISIONS_COUNTER,
-            "integrity_fail_1m": INTEGRITY_FAILURES_COUNTER,
-            "result_hash_write_1m": HASH_WRITES_COUNTER,
-            "result_hash_migrated_1m": HASH_MIGRATIONS_COUNTER,
-            
-            # --- LEGACY KEYS (Keep for UI Compatibility) ---
-            "queueLength": queue_depth,
-            "errorRate": error_rate,
-            "uptime": int(time.time() - psutil.boot_time()),
-            
-            "config": {
-                "max_queue": RobustnessConfig.MAX_QUEUE_DEPTH,
-                "max_inflight": RobustnessConfig.MAX_INFLIGHT,
-                "backpressure_mode": RobustnessConfig.BACKPRESSURE_MODE
-            }
-        }
-    except Exception as e:
-        print(f"[api] Error fetching metrics: {e}")
-        return {"status": "error", "error": str(e)}
 
 @app.post("/metrics/module-calls")
 def post_module_metrics(payload: dict):
@@ -1410,60 +1490,7 @@ def get_detected_anomalies(window: str = "1h", limit: int = 100):
 
 import asyncio
 
-@app.get("/api/system/health")
-async def get_system_health():
-    """Checks the status of key sheratan services by checking ports."""
-    services = [
-        {"name": "Core API", "port": 8001, "expected": "up"},
-        {"name": "WebRelay", "port": 3000, "expected": "up"},
-        {"name": "Broker", "port": 9000, "expected": "up"},
-        {"name": "Host-A", "port": 8081, "expected": "up"},
-        {"name": "Dashboard", "port": 3001, "expected": "up"}
-    ]
-    
-    results = []
-    now_ts = time.time()
-    for s in services:
-        status = "down"
-        # Avoid self-ping deadlock (uvicorn single worker)
-        if s['port'] == 8001:
-            status = "active"
-        else:
-            # Try 127.0.0.1 first (standard for Windows local binding)
-            targets = ['127.0.0.1', 'localhost']
-            for target in targets:
-                try:
-                    conn = asyncio.open_connection(target, s['port'])
-                    _, writer = await asyncio.wait_for(conn, timeout=1.0)
-                    writer.close()
-                    await writer.wait_closed()
-                    status = "active"
-                    break
-                except:
-                    pass
-        
-        # Calculate uptime string
-        uptime_str = "N/A"
-        if status == "active":
-            if s['port'] == 8001:
-                diff = int(now_ts - CORE_START_TIME)
-                hours, rem = divmod(diff, 3600)
-                minutes, seconds = divmod(rem, 60)
-                uptime_str = f"{hours}h {minutes}m {seconds}s"
-            else:
-                uptime_str = "online"
-
-        results.append({
-            "id": s['name'].lower().replace(" ", "-"),
-            "name": s['name'],
-            "status": status,
-            "port": s['port'],
-            "uptime": uptime_str,
-            "lastCheck": datetime.utcnow().isoformat() + "Z",
-            "type": "core" if s['port'] == 8001 else ("relay" if s['port'] == 3000 else "engine"),
-            "dependencies": ["core-api"] if s['port'] != 8001 else []
-        })
-    return results
+# --- OBSOLETE BLOCK REMOVED ---
 
 
 # ------------------------------------------------------------------------------
@@ -1472,17 +1499,14 @@ async def get_system_health():
 
 @app.get("/api/status")
 def status():
-    snap = state_machine.snapshot()
+    """Consolidated status endpoint for quick checks."""
+    metrics = health_manager.get_system_metrics()
     return {
         "status": "operational",
-        "uptime_sec": int(time.time() - CORE_START_TIME),
-        "memory": dict(psutil.virtual_memory()._asdict()),
-        "cpu_percent": psutil.cpu_percent(),
-        "storage": {
-            "queue_depth": storage.count_pending_jobs(),
-            "inflight": storage.count_inflight_jobs(),
-            "ready_to_dispatch": storage.count_ready_jobs(datetime.utcnow().isoformat() + "Z")
-        },
+        "uptime_sec": metrics["uptime_sec"],
+        "memory": metrics["memory"],
+        "cpu_percent": metrics["cpu_pct"],
+        "storage": metrics["storage"],
         "config": {
             "max_queue": RobustnessConfig.MAX_QUEUE_DEPTH,
             "max_inflight": RobustnessConfig.MAX_INFLIGHT,
@@ -1495,92 +1519,26 @@ def status():
 # PHASE A: STATE MACHINE ENDPOINTS
 # ------------------------------------------------------------------------------
 
-async def _evaluate_system_health() -> Dict[str, Any]:
-    """Evaluate system health and determine appropriate state."""
-    services = [
-        {"name": "Core API", "port": 8001, "critical": True},
-        {"name": "WebRelay", "port": 3000, "critical": True},
-        {"name": "Broker", "port": 9000, "critical": False},
-        {"name": "Host-A", "port": 8081, "critical": False},
-        {"name": "Dashboard", "port": 3001, "critical": False}
-    ]
-    
-    results = {}
-    critical_down = []
-    non_critical_down = []
-    
-    for s in services:
-        status = "down"
-        if s['port'] == 8001:
-            status = "active"  # Core is always up if we're running
-        else:
-            targets = ['127.0.0.1', 'localhost']
-            for target in targets:
-                try:
-                    conn = asyncio.open_connection(target, s['port'])
-                    _, writer = await asyncio.wait_for(conn, timeout=1.0)
-                    writer.close()
-                    await writer.wait_closed()
-                    status = "active"
-                    break
-                except:
-                    pass
-        
-        results[s['name']] = status
-        if status == "down":
-            if s['critical']:
-                critical_down.append(s['name'])
-            else:
-                non_critical_down.append(s['name'])
-    
-    # Determine overall state
-    if critical_down:
-        overall = "degraded"  # Critical service down
-    elif non_critical_down:
-        overall = "degraded"  # Non-critical services down
-    else:
-        overall = "operational"
-    
-    return {
-        "overall": overall,
-        "services": results,
-        "critical_down": critical_down,
-        "non_critical_down": non_critical_down
-    }
+# Internal helper removed in favor of health_manager.evaluate_full_health()
 
 
 @app.get("/api/system/state")
 async def get_system_state():
     """Get current system state with reasoning."""
     snap = state_machine.snapshot()
-    health = await _evaluate_system_health()
+    health = await health_manager.evaluate_full_health()
     
     # Calculate uptime in current state
     state_duration = time.time() - snap.since_ts
-    hours, rem = divmod(int(state_duration), 3600)
-    minutes, seconds = divmod(rem, 60)
     
-    response = {
+    return {
         "state": snap.state,
         "since": snap.since_ts,
-        "duration": f"{hours}h {minutes}m {seconds}s",
+        "duration_sec": int(state_duration),
         "health": health,
         "counters": snap.counters or {},
-        "last_transition": None
+        "last_transition": snap.last_transition
     }
-    
-    if snap.last_transition:
-        response["last_transition"] = {
-            "event_id": snap.last_transition.event_id,
-            "timestamp": snap.last_transition.ts,
-            "from": snap.last_transition.prev_state,
-            "to": snap.last_transition.next_state,
-            "reason": snap.last_transition.reason,
-            "actor": snap.last_transition.actor,
-            "meta": snap.last_transition.meta or {}
-        }
-    
-    return response
 
 
 @app.post("/api/system/state/transition")
@@ -1681,7 +1639,170 @@ def get_gateway_config(request: Request):
 
 @app.get("/")
 def root():
-    return JSONResponse({"sheratan_core_v2": "running"})
+    return JSONResponse({"sheratan_core_v2": "running", "version": "0.3.0"})
+
+
+# ------------------------------------------------------------------------------
+# SYSTEM OBSERVABILITY & HEALTH (Track C1-C3)
+# ------------------------------------------------------------------------------
+
+@app.get("/api/system/health")
+async def get_system_health():
+    """Legacy endpoint for HealthTab (List of services)."""
+    health = await health_manager.evaluate_full_health()
+    return health["service_list"]
+
+@app.get("/api/system/health/ops")
+async def get_ops_health():
+    """Detailed health status for OpsTab."""
+    health = await health_manager.evaluate_full_health()
+    metrics = health_manager.get_system_metrics()
+    
+    return {
+        "status": health["overall"].upper(),
+        "version": "v0.3.0",
+        "uptime_sec": metrics["uptime_sec"],
+        "db": "OK" if health["db_ok"] else "ERROR",
+        "queue": {
+            "depth": metrics["storage"]["queue_depth"],
+            "inflight": metrics["storage"]["inflight"],
+            "max": RobustnessConfig.MAX_QUEUE_DEPTH,
+            "max_inflight": RobustnessConfig.MAX_INFLIGHT
+        },
+        "violations": slo_manager.active_violations,
+        "services": health["services"]
+    }
+
+# System observability endpoints unified below.
+@app.get("/api/system/metrics")
+async def get_system_metrics():
+    """Hybrid metrics snapshot (Supports Legacy HealthTab and Modern OpsTab)."""
+    health = await health_manager.evaluate_full_health()
+    metrics = health_manager.get_system_metrics()
+    
+    from core.gateway_middleware import get_gateway_stats
+    gw = get_gateway_stats()
+    
+    # Calculate error rate (internal legacy measure)
+    failed = storage.count_recent_errors(limit=100)
+    error_rate = round((failed / 100 * 100), 2)
+    
+    return {
+        # --- LEGACY FLAT KEYS (HealthTab) ---
+        "cpu": metrics["cpu_pct"],
+        "memory": metrics["memory"]["percent"],
+        "queueLength": metrics["storage"]["queue_depth"],
+        "errorRate": error_rate,
+        "uptime": metrics["uptime_sec"],
+        
+        # --- MODERN NESTED OBJECTS (OpsTab) ---
+        "status": health["overall"],
+        "uptime_sec": metrics["uptime_sec"],
+        "process": {
+            "cpu_pct": metrics["process"]["cpu_pct"],
+            "mem_mb": metrics["process"]["memory_rss"] / (1024 * 1024),
+            "memory_pct": metrics["memory"]["percent"]
+        },
+        "queue": {
+            "depth": metrics["storage"]["queue_depth"],
+            "inflight": metrics["storage"]["inflight"],
+            "max": RobustnessConfig.MAX_QUEUE_DEPTH,
+            "max_inflight": RobustnessConfig.MAX_INFLIGHT
+        },
+        "idempotency": {
+            "hits": IDEMPOTENT_HITS_COUNTER,
+            "collisions": IDEMPOTENCY_COLLISIONS_COUNTER
+        },
+        "integrity": {
+            "failures": INTEGRITY_FAILURES_COUNTER,
+            "hash_writes": HASH_WRITES_COUNTER,
+            "migrations": HASH_MIGRATIONS_COUNTER
+        },
+        "gateway": gw.get("stats", {}),
+        "config": {
+            "backpressure_mode": RobustnessConfig.BACKPRESSURE_MODE
+        }
+    }
+
+@app.get("/api/system/alerts")
+async def get_system_alerts(limit: int = 100):
+    """Fetch recent alerts from the log file (Optimized tail-read)."""
+    alert_file = storage.DATA_DIR / "logs" / "alerts.jsonl"
+    if not alert_file.exists():
+        return []
+    
+    alerts = []
+    try:
+        with alert_file.open("rb") as f:
+            try:
+                f.seek(0, os.SEEK_END)
+                size = f.tell()
+                offset = max(0, size - 65536) # Read last 64kb
+                f.seek(offset)
+                chunk = f.read().decode("utf-8", errors="ignore")
+                lines = chunk.splitlines()
+                # Get the last 'limit' lines, excluding potentially partial first line
+                start_idx = 0 if offset == 0 else 1
+                for line in reversed(lines[start_idx:]):
+                    if not line.strip(): continue
+                    try:
+                        alerts.append(json.loads(line))
+                        if len(alerts) >= limit: break
+                    except:
+                        continue
+            except Exception:
+                f.seek(0)
+                lines = f.readlines()
+                for line in reversed(lines[-limit:]):
+                    try:
+                        alerts.append(json.loads(line))
+                    except:
+                        continue
+    except Exception as e:
+        print(f"[api] Error reading alerts: {e}")
+        return []
+    
+    return alerts
+
+@app.post("/api/system/diagnostics/trigger")
+async def trigger_diagnostics():
+    """Trigger a new diagnostic bundle creation."""
+    try:
+        import subprocess
+        script_path = BASE_DIR / "scripts" / "diagnose.ps1"
+        if not script_path.exists():
+            return {"status": "error", "message": "Diagnostic script not found"}
+            
+        # Run as detached process (Track C3)
+        subprocess.Popen(["powershell.exe", "-ExecutionPolicy", "Bypass", "-File", str(script_path),
+                         "-CustomRepoRoot", str(BASE_DIR),
+                         "-CustomDataDir", str(storage.DATA_DIR)],
+                         cwd=str(BASE_DIR), 
+                         stdout=subprocess.DEVNULL, 
+                         stderr=subprocess.DEVNULL)
+        return {"status": "triggered", "message": "Generation started"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/system/diagnostics/list")
+async def list_diagnostics():
+    """List available diagnostic bundles."""
+    diag_dir = storage.DATA_DIR / "diagnostics"
+    if not diag_dir.exists():
+        return []
+        
+    bundles = []
+    try:
+        for f in diag_dir.glob("sheratan_diag_*.zip"):
+            stats = f.stat()
+            bundles.append({
+                "name": f.name,
+                "ts": datetime.fromtimestamp(stats.st_mtime).isoformat() + "Z",
+                "size_mb": round(stats.st_size / (1024 * 1024), 2)
+            })
+    except Exception:
+        pass
+    return sorted(bundles, key=lambda x: x["ts"], reverse=True)
 
 
 # ------------------------------------------------------------------------------
@@ -1904,6 +2025,17 @@ def clear_host_policy(request: Request, payload: dict):
 
 if __name__ == "__main__":
     import uvicorn
+    import multiprocessing
+    multiprocessing.freeze_support()
     # Start on 8001 as specified in DASHBOARDS.md
     print("--- Sheratan Core v2 starting on http://localhost:8001 ---")
+    
+    # Auto-launch dashboard if frozen (Track D4)
+    if getattr(sys, 'frozen', False):
+        def _launch():
+            time.sleep(2.0)
+            webbrowser.open("http://localhost:8001/ui/")
+        threading.Thread(target=_launch, daemon=True).start()
+        print("[core] Bundle detected: Dashboard auto-launch scheduled")
+
     uvicorn.run(app, host="0.0.0.0", port=8001)

@@ -445,6 +445,16 @@ def count_inflight_jobs() -> int:
         r = conn.execute("SELECT COUNT(*) FROM jobs WHERE status IN ('working', 'running')").fetchone()
         return r[0]
 
+def count_recent_errors(limit: int = 100) -> int:
+    """Efficiently count errors in the last N jobs without loading them into memory."""
+    with get_db() as conn:
+        r = conn.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT status FROM jobs ORDER BY created_at DESC LIMIT ?
+            ) WHERE status IN ('failed', 'error')
+        """, (limit,)).fetchone()
+        return r[0] if r else 0
+
 def count_ready_jobs(now_iso: str) -> int:
     """Pending jobs that have no next_retry_utc or next_retry_utc <= now."""
     with get_db() as conn:

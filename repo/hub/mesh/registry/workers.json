@@ -1,0 +1,134 @@
+{
+  "webrelay_worker": {
+    "worker_id": "webrelay_worker",
+    "capabilities": [
+      {
+        "kind": "llm_call",
+        "cost": 25
+      },
+      {
+        "kind": "agent_plan",
+        "cost": 30
+      },
+      {
+        "kind": "analyze_file",
+        "cost": 20
+      }
+    ],
+    "status": "online",
+    "last_seen": 1769600620.5381875,
+    "endpoint": "http://localhost:3000",
+    "stats": {
+      "latency_ms_ema": 32791.31736,
+      "success_ema": 0.9040000000000001,
+      "n": 2,
+      "last_seen_ts": 1769600620.5381875,
+      "consecutive_failures": 0,
+      "is_offline": false,
+      "cooldown_until": 0.0,
+      "active_jobs": 0
+    },
+    "meta": {
+      "llm_backend": "chatgpt",
+      "version": "2.0"
+    }
+  },
+  "node-A": {
+    "worker_id": "node-A",
+    "capabilities": [
+      {
+        "kind": "compute",
+        "cost": 10
+      },
+      {
+        "kind": "list_files",
+        "cost": 10
+      },
+      {
+        "kind": "write_file",
+        "cost": 10
+      },
+      {
+        "kind": "read_file",
+        "cost": 10
+      },
+      {
+        "kind": "ping",
+        "cost": 10
+      }
+    ],
+    "status": "online",
+    "last_seen": 1769625750.1714237,
+    "endpoint": "http://127.0.0.1:8081",
+    "stats": {
+      "latency_ms_ema": 750.0,
+      "success_ema": 0.85,
+      "n": 0,
+      "last_seen_ts": 0.0,
+      "consecutive_failures": 0,
+      "is_offline": false,
+      "cooldown_until": 0.0,
+      "active_jobs": 0
+    },
+    "meta": {
+      "build_id": "sheratan-v2.8-prod",
+      "capabilities": [
+        "compute",
+        "list_files",
+        "write_file",
+        "read_file",
+        "ping"
+      ],
+      "capability_hash": "a4b4e9185ee3062f3f1f7259d7e3397d9fe5d41c5de2a0d0a7f43b83a0d0a7f4"
+    }
+  },
+  "node-B": {
+    "worker_id": "node-B",
+    "capabilities": [
+      {
+        "kind": "compute",
+        "cost": 10
+      },
+      {
+        "kind": "list_files",
+        "cost": 10
+      },
+      {
+        "kind": "write_file",
+        "cost": 10
+      },
+      {
+        "kind": "read_file",
+        "cost": 10
+      },
+      {
+        "kind": "ping",
+        "cost": 10
+      }
+    ],
+    "status": "online",
+    "last_seen": 1769625743.8815277,
+    "endpoint": "http://127.0.0.1:8081",
+    "stats": {
+      "latency_ms_ema": 750.0,
+      "success_ema": 0.85,
+      "n": 0,
+      "last_seen_ts": 0.0,
+      "consecutive_failures": 0,
+      "is_offline": false,
+      "cooldown_until": 0.0,
+      "active_jobs": 0
+    },
+    "meta": {
+      "build_id": "sheratan-v2.8-prod",
+      "capabilities": [
+        "compute",
+        "list_files",
+        "write_file",
+        "read_file",
+        "ping"
+      ],
+      "capability_hash": "a4b4e9185ee3062f3f1f7259d7e3397d9fe5d41c5de2a0d0a7f43b83a0d0a7f4"
+    }
+  }
+}

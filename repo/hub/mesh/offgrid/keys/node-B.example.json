@@ -1,0 +1,11 @@
+{
+    "node_id": "node-B",
+    "ed25519": {
+        "signing_key": "REPLACE_WITH_YOUR_SIGNING_KEY",
+        "verify_key": "REPLACE_WITH_YOUR_VERIFY_KEY"
+    },
+    "x25519": {
+        "private_key": "REPLACE_WITH_YOUR_PRIVATE_KEY",
+        "public_key": "REPLACE_WITH_YOUR_PUBLIC_KEY"
+    }
+}

@@ -1,0 +1,261 @@
+import sqlite3
+import json
+from contextlib import contextmanager
+from core.config import DB_PATH
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    # Enable WAL mode for better concurrency
+    conn.execute("PRAGMA journal_mode=WAL")
+    cursor = conn.cursor()
+    
+    # Missions table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS missions (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            user_id TEXT NOT NULL,
+            status TEXT DEFAULT 'planned',
+            metadata TEXT DEFAULT '{}',
+            tags TEXT DEFAULT '[]',
+            created_at TEXT NOT NULL
+        )
+    """)
+    
+    # Tasks table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id TEXT PRIMARY KEY,
+            mission_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            kind TEXT NOT NULL,
+            params TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (mission_id) REFERENCES missions (id) ON DELETE CASCADE
+        )
+    """)
+    
+    # Jobs table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS jobs (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            payload TEXT DEFAULT '{}',
+            status TEXT DEFAULT 'pending',
+            result TEXT,
+            retry_count INTEGER DEFAULT 0,
+            priority TEXT DEFAULT 'normal',
+            timeout_seconds INTEGER DEFAULT 300,
+            depends_on TEXT DEFAULT '[]',
+            idempotency_key TEXT UNIQUE,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE
+        )
+    """)
+
+    # --- MIGRATION: Add new columns if they don't exist ---
+    for col, col_type in [("priority", "TEXT DEFAULT 'normal'"), 
+                          ("timeout_seconds", "INTEGER DEFAULT 300"), 
+                          ("depends_on", "TEXT DEFAULT '[]'")]:
+        try:
+            cursor.execute(f"ALTER TABLE jobs ADD COLUMN {col} {col_type}")
+        except sqlite3.OperationalError:
+            pass # Column already exists
+
+    # --- MIGRATION: Missions ---
+    try:
+        cursor.execute("ALTER TABLE missions ADD COLUMN status TEXT DEFAULT 'planned'")
+    except sqlite3.OperationalError:
+        pass
+
+    # Rate Limit Config table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS rate_limit_config (
+            source TEXT PRIMARY KEY,
+            max_jobs_per_minute INTEGER NOT NULL,
+            max_concurrent_jobs INTEGER NOT NULL,
+            current_count INTEGER DEFAULT 0,
+            window_start TEXT NOT NULL
+        )
+    """)
+    
+    # Phase 10.1: Chain Context table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chain_context (
+            chain_id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            state TEXT NOT NULL DEFAULT 'running',
+            limits_json TEXT NOT NULL,
+            artifacts_json TEXT NOT NULL,
+            error_json TEXT,
+            needs_tick INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    
+    # Phase 10.1: Chain Specs table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chain_specs (
+            spec_id TEXT PRIMARY KEY,
+            chain_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            root_job_id TEXT NOT NULL,
+            parent_job_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            params_json TEXT NOT NULL,
+            resolved_params_json TEXT,
+            resolved INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'pending',
+            dedupe_key TEXT NOT NULL,
+            dispatched_job_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(chain_id, dedupe_key)
+        )
+    """)
+    
+    # Phase 10.1: Indexes for chain_specs
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_chain_specs_chain_status
+        ON chain_specs(chain_id, status)
+    """)
+    
+    # --- MIGRATION: Phase 10.2: Chain Claiming & Tracking ---
+    try:
+        cursor.execute("ALTER TABLE chain_context ADD COLUMN last_tick_at TEXT")
+    except sqlite3.OperationalError:
+        pass
+    
+    try:
+        cursor.execute("ALTER TABLE chain_specs ADD COLUMN claim_id TEXT")
+    except sqlite3.OperationalError:
+        pass
+        
+    try:
+        cursor.execute("ALTER TABLE chain_specs ADD COLUMN claimed_until TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_chain_specs_claimed
+        ON chain_specs(chain_id, status, claimed_until)
+    """)
+
+    # Track A2: Hosts table for Attestation
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS hosts (
+            id TEXT PRIMARY KEY,
+            status TEXT,
+            health TEXT DEFAULT 'GREEN',
+            last_seen TEXT,
+            attestation_json TEXT DEFAULT '{}',
+            metadata_json TEXT DEFAULT '{}'
+        )
+    """)
+    
+    # --- SCHEMA MIGRATIONS TABLE ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version TEXT PRIMARY KEY,
+            applied_at TEXT NOT NULL,
+            description TEXT
+        )
+    """)
+    
+    cursor.execute("""
+        INSERT OR IGNORE INTO schema_migrations (version, applied_at, description)
+        VALUES ('baseline_v1', datetime('now'), 'Initial schema with missions, tasks, jobs, chains')
+    """)
+
+    # Track A3 Phase 2: Policy Persistence
+    migrate_hosts_policy_fields(cursor)
+    
+    # Track B1: Data-Plane Robustness (Lease & Retry)
+    migrate_jobs_robustness_fields(cursor)
+    
+    # Track B2: Idempotency (Hash & Result Cache)
+    migrate_jobs_idempotency_fields(cursor)
+    
+    # Gateway Meta (Needed by enforce_gateway)
+    migrate_jobs_gateway_meta(cursor)
+
+    # Track B3: Result Integrity (Hashing)
+    migrate_jobs_result_integrity(cursor)
+    
+    conn.commit()
+    
+    # Log DB info for debugging
+    table_count = cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone()[0]
+    print(f"[database] Initialized at {DB_PATH}")
+    print(f"[database] Tables: {table_count}")
+    print(f"[database] WAL mode: enabled")
+    
+    conn.close()
+
+def _column_exists(cursor: sqlite3.Cursor, table: str, col: str) -> bool:
+    cursor.execute(f"PRAGMA table_info({table})")
+    cols = [r[1] for r in cursor.fetchall()]
+    return col in cols
+
+def _add_column_if_missing(cursor: sqlite3.Cursor, table: str, ddl: str, col: str) -> None:
+    if not _column_exists(cursor, table, col):
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+def migrate_hosts_policy_fields(cursor: sqlite3.Cursor) -> None:
+    """Idempotent migration for Track A3 policy fields."""
+    _add_column_if_missing(cursor, "hosts", "policy_state TEXT NOT NULL DEFAULT 'NORMAL'", "policy_state")
+    _add_column_if_missing(cursor, "hosts", "policy_reason TEXT", "policy_reason")
+    _add_column_if_missing(cursor, "hosts", "policy_until_utc TEXT", "policy_until_utc")
+    _add_column_if_missing(cursor, "hosts", "policy_hits INTEGER NOT NULL DEFAULT 0", "policy_hits")
+    _add_column_if_missing(cursor, "hosts", "policy_updated_utc TEXT", "policy_updated_utc")
+    _add_column_if_missing(cursor, "hosts", "policy_by TEXT", "policy_by")
+    
+    # Track A4: Node Identity (Ed25519)
+    _add_column_if_missing(cursor, "hosts", "public_key TEXT", "public_key")
+    _add_column_if_missing(cursor, "hosts", "key_first_seen_utc TEXT", "key_first_seen_utc")
+
+def migrate_jobs_robustness_fields(cursor: sqlite3.Cursor) -> None:
+    """Idempotent migration for Track B1 robustness fields on jobs table."""
+    _add_column_if_missing(cursor, "jobs", "lease_owner TEXT", "lease_owner")
+    _add_column_if_missing(cursor, "jobs", "lease_until_utc TEXT", "lease_until_utc")
+    _add_column_if_missing(cursor, "jobs", "next_retry_utc TEXT", "next_retry_utc")
+
+def migrate_jobs_idempotency_fields(cursor: sqlite3.Cursor) -> None:
+    """Idempotent migration for Track B2 idempotency fields on jobs table."""
+    _add_column_if_missing(cursor, "jobs", "idempotency_hash TEXT", "idempotency_hash")
+    _add_column_if_missing(cursor, "jobs", "completed_result TEXT", "completed_result")
+    _add_column_if_missing(cursor, "jobs", "idempotency_first_seen_utc TEXT", "idempotency_first_seen_utc")
+
+def migrate_jobs_gateway_meta(cursor: sqlite3.Cursor) -> None:
+    """Add meta column to jobs table."""
+    _add_column_if_missing(cursor, "jobs", "meta TEXT DEFAULT '{}'", "meta")
+
+def migrate_jobs_result_integrity(cursor: sqlite3.Cursor) -> None:
+    """Add result integrity columns to jobs table."""
+    _add_column_if_missing(cursor, "jobs", "result_hash TEXT", "result_hash")
+    _add_column_if_missing(cursor, "jobs", "result_hash_alg TEXT DEFAULT 'sha256'", "result_hash_alg")
+    _add_column_if_missing(cursor, "jobs", "result_canonical TEXT", "result_canonical")
+
+@contextmanager
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    # PRAGMAs for performance and concurrency (per connection)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA temp_store=MEMORY")
+    
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    print(f"Initializing database at {DB_PATH}...")
+    init_db()
+    print("Database initialized successfully.")

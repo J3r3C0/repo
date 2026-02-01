@@ -1,16 +1,24 @@
 # Sheratan Core
 
 ![Status: Production-Ready](https://img.shields.io/badge/Status-Production--Ready-green)
-![Version: 2.9](https://img.shields.io/badge/Version-v2.9-blue)
+![Version: 0.3.0](https://img.shields.io/badge/Version-v0.3.0-blue)
 ![Acceptance: PASS](https://img.shields.io/badge/Acceptance-PASS-brightgreen)
 
 Sheratan Core is a stable, high-performance orchestration and control-plane engine designed for robust mesh-based task execution. It establishes a secure, tamper-proof environment for distributed workloads with a focus on cryptographic integrity and data-plane resilience.
 
 ---
 
+## Project Status
+
+🟢 Track B (Reliability) completed  
+Acceptance Gate passed. Tags finalized (`track-b2-complete`, `track-b3-complete`, `v0.3.0`).  
+System is deployment-ready.
+
+---
+
 ## Executive Summary
 
-Sheratan Core has successfully passed all production readiness and stability gates. It is a reliable, manipulation-resistant system designed for production environments or high-stakes development phases.
+Sheratan Core has successfully passed all production readiness and stability gates. It is a reliable, manipulation-resistant system designed for production environments. With v0.3.0, it includes a full observability suite and standalone distribution capabilities.
 
 ### Core Values
 - **Reliability**: Remains stable under load, detects duplicate/faulty requests, and ensures consistent results.
@@ -19,7 +27,7 @@ Sheratan Core has successfully passed all production readiness and stability gat
 
 ---
 
-## Technical Capabilities (Sheratan v2.9)
+## Technical Capabilities (Sheratan v0.3.0)
 
 ### 🛡️ Governance & Security (Track A)
 - **Node Identity (A4)**: Ed25519 identity with TOFU-pinning and signed heartbeats.
@@ -31,6 +39,17 @@ Sheratan Core has successfully passed all production readiness and stability gat
 - **Result Integrity (B3)**: Canonical SHA256 hashing for all results. Tamper detection triggers 403 Forbidden and audit alerts.
 - **Idempotency (B2)**: At-most-once semantics with gateway hashing and collision detection.
 - **Backpressure (B1)**: Queue-depth limits, inflight-limits, and DB-native lease management.
+
+### 📊 Observability & Operations (Track C)
+- **Ops/NOC Dashboard**: Real-time monitoring of health, queue depth, and SLO violations.
+- **Alert Center**: Automated detection of stalls, bursts, and integrity failures.
+- **Diagnostic Bundler**: One-click system state snapshots and log collection (sanitized).
+- **Service Mesh Metrics**: Live visibility into node health and performance.
+
+### 🚀 Distribution (Track D)
+- **Standalone EXE**: One-file distribution for Windows (Core + Assets).
+- **Embedded UI**: React dashboard served directly via Port 8001 `/ui`.
+- **Persistent Storage**: Robust separation of read-only assets and writable data.
 
 ---
 
@@ -45,8 +64,14 @@ The system state is continuously validated via the **Sheratan Acceptance Suite**
 
 ## Getting Started
 
-### Quick Launch (Windows)
-To start the complete system on localhost:
+### Quick Launch (EXE)
+If you have the bundled version:
+```powershell
+.\sheratan_core.exe
+```
+The dashboard is then available at `http://localhost:8001/ui/`.
+
+### Development Launch
 ```powershell
 .\START_COMPLETE_SYSTEM.bat
 ```
@@ -61,8 +86,8 @@ To run the full production acceptance gate:
 
 ## Documentation
 - [System Overview](docs/system_overview.md) - Port guide and architecture.
-- [Architecture](docs/SHERATAN_REFACTORING_PLAN.md) - Technical design and state machines.
-- [Track B2 Details](docs/Track%20B2%20idempotency.md) - Idempotency implementation.
+- [Architecture](docs/SHERATAN_REFACTORING_PLAN.md) - Technical design.
+- [Observability Guide](docs/Track%20C%20Observability.md) - Monitoring and Alerts.
 
 ---
-**Status**: Track B (Reliability) is officially CLOSED. Ready for deployment.
+**Status**: Sheratan v0.3.0 Milestone reached. Deployment Ready.

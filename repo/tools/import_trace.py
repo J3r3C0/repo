@@ -28,4 +28,13 @@ def install_import_tracer(out_path: str = str(DEFAULT_OUT)) -> None:
         ]
         out.write_text("\n".join(lines), encoding="utf-8")
 
+    import threading
+
+    def _periodic_write() -> None:
+        while True:
+            _write_report()
+            time.sleep(5)
+
+    t = threading.Thread(target=_periodic_write, daemon=True)
+    t.start()
     atexit.register(_write_report)

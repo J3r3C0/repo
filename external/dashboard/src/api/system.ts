@@ -88,6 +88,41 @@ export const getSystemHealth = async () => {
         return response.data;
     } catch (error) {
         console.error('Failed to fetch system health:', error);
+        return []; // Return empty array for HealthTab compatibility
+    }
+};
+
+export const getOpsHealth = async () => {
+    try {
+        const response = await apiClient.get('/system/health/ops');
+        return response.data;
+    } catch (error) {
+        console.error('Failed to fetch ops health:', error);
+        return { status: 'UNKNOWN', queue: { depth: 0, inflight: 0 }, violations: [] };
+    }
+};
+
+export const getSystemAlerts = async (limit: number = 50) => {
+    try {
+        const response = await apiClient.get(`/system/alerts?limit=${limit}`);
+        return response.data;
+    } catch (error) {
+        console.error('Failed to fetch alerts:', error);
+        return [];
+    }
+};
+
+export const triggerDiagnostics = async () => {
+    const response = await apiClient.post('/system/diagnostics/trigger');
+    return response.data;
+};
+
+export const getDiagnosticsList = async () => {
+    try {
+        const response = await apiClient.get('/system/diagnostics/list');
+        return response.data;
+    } catch (error) {
+        console.error('Failed to fetch diagnostics list:', error);
         return [];
     }
 };

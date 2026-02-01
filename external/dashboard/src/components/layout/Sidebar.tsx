@@ -9,6 +9,9 @@ import {
   Settings,
   Cpu,
   GitBranch,
+  AlertCircle,
+  Archive,
+  Gauge
 } from "lucide-react";
 import { ActionLog } from "../common/ActionLog";
 import sheratanLogo from "../../assets/sheratan-logo.jpg";
@@ -23,7 +26,10 @@ export type SheratanTabId =
   | "logs"
   | "settings"
   | "model"
-  | "dependencies";
+  | "dependencies"
+  | "ops"
+  | "alerts"
+  | "diagnostics";
 
 const tabs: {
   id: SheratanTabId;
@@ -37,6 +43,9 @@ const tabs: {
     { id: "projects", label: "Projects", icon: FolderTree },
     { id: "health", label: "Status/Health", icon: Activity },
     { id: "logs", label: "Live Logs", icon: Terminal },
+    { id: "ops", label: "Ops/NOC", icon: Gauge },
+    { id: "alerts", label: "Alerts", icon: AlertCircle },
+    { id: "diagnostics", label: "Diagnostics", icon: Archive },
     { id: "model", label: "Model Inspector", icon: Cpu },
     { id: "dependencies", label: "Dependencies", icon: GitBranch },
     { id: "settings", label: "Settings", icon: Settings },

@@ -31,5 +31,8 @@ Für detaillierte Entscheidungen gelten folgende Policies:
 3. [NAMING_CONVENTION.md](../NAMING_CONVENTION.md) - Zukünftige Strukturvorgabe.
 4. [RUNBOOK.md](../RUNBOOK.md) - Operativer Leitfaden.
 
+## 6. Redirect Policy
+Veraltete Repositories (Status `archive` oder `deprecated`) MÜSSEN ein Redirect-README enthalten, das auf das aktuelle "Home" (Core oder Hub-v2) verweist. Dabei sind ausschließlich öffentliche GitHub-Links zu verwenden (keine lokalen `file:///` Pfade).
+
 ---
 *Referenz: sheratan-state-2026-01*

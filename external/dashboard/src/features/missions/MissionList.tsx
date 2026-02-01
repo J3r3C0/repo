@@ -56,7 +56,7 @@ export function MissionList({ missions, selectedId, onSelect }: MissionListProps
     } else {
       setDeleteConfirmId(mission.id);
       log("info", "Klick nochmal zum Bestätigen");
-      setTimeout(() => setDeleteConfirmId(null), 3000);
+      setTimeout(() => setDeleteConfirmId(null),);
     }
   };
 
@@ -114,8 +114,8 @@ export function MissionList({ missions, selectedId, onSelect }: MissionListProps
                 onClick={(e) => handleDelete(e, mission)}
                 disabled={deleteMission.isPending}
                 className={`flex-shrink-0 p-2 rounded-lg transition ${isConfirmingDelete
-                    ? "bg-red-600 text-white"
-                    : "text-slate-500 hover:text-red-400 hover:bg-red-500/10"
+                  ? "bg-red-600 text-white"
+                  : "text-slate-500 hover:text-red-400 hover:bg-red-500/10"
                   }`}
                 title={isConfirmingDelete ? "Nochmal klicken zum Löschen" : "Mission löschen"}
               >

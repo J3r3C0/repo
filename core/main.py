@@ -141,6 +141,20 @@ from core.health import health_manager
 rate_limiter = RateLimiter()
 from core.config import CORE_START_TIME
 
+# --- Track V-Mesh: System Control Logic ---
+from core.vmesh.stability import StabilityEvaluator
+from core.vmesh.complexity import ComplexityTracker
+from core.vmesh.sync import SynchronizationLayer
+from core.vmesh.service import VMeshService
+from core.vmesh.runtime import vmesh_runtime
+from core.vmesh.controller import PolicyMode
+
+vmesh_service = VMeshService(
+    evaluator=StabilityEvaluator(),
+    complexity=ComplexityTracker(),
+    sync=SynchronizationLayer()
+)
+
 # --- Track B2: Idempotency Metrics (In-Memory) ---
 # In-memory counters for performance visibility
 IDEMPOTENT_HITS_COUNTER = 0
@@ -289,6 +303,12 @@ class Dispatcher:
         return bool(getattr(self, "_running", False)) and t is not None and t.is_alive()
 
     def _dispatch_step(self):
+        # 0. Check V-Mesh Policy Mode
+        mode = vmesh_runtime.current_mode
+        if mode in [PolicyMode.SAFE_MODE, PolicyMode.READONLY]:
+            print(f"[dispatcher] [VMESH] {mode.value} active. Dispatching halted.")
+            return
+        
         # 0. Reap expired leases BEFORE dispatching to free up capacity
         reaped = storage.reap_expired_leases()
         if reaped > 0:
@@ -498,6 +518,12 @@ async def lifespan(app: FastAPI):
     if reaped > 0:
         print(f"[storage] Reaped {reaped} expired leases at startup.")
     
+    # 0.2 Start V-Mesh Service
+    vmesh_service.register_source("ledger_conflicts", lambda: INTEGRITY_FAILURES_COUNTER)
+    vmesh_service.register_source("latency", lambda: diagnostic_engine.get_latest_report().get("avg_job_latency_ms", 200.0) or 200.0)
+    await vmesh_service.start()
+    print("[vmesh] Control logic initialized")
+    
     # 1. Initialize State Machine
     state_machine.load_or_init()
     print(f"[state] System initialized in state: {state_machine.snapshot().state}")
@@ -574,6 +600,7 @@ async def lifespan(app: FastAPI):
     
     # Clean up
     try:
+        vmesh_service.stop()
         dispatcher.stop()
         chain_runner.stop()
         slo_manager.stop()
@@ -642,6 +669,18 @@ from core.why_api import router as why_router
 app.include_router(why_router, prefix="/api/why")
 # -----------------------------------------
 
+# --- V-Mesh Monitoring (Control Plane) ---
+@app.get("/api/vmesh/status")
+def get_vmesh_status():
+    """Returns the current V-Mesh policy mode and stability metrics."""
+    return {
+        "mode": vmesh_runtime.current_mode.value,
+        "stability_s": vmesh_runtime.stability_s,
+        "sync_score": vmesh_runtime.sync_score,
+        "last_update": datetime.fromtimestamp(vmesh_runtime.last_update_ts, tz=timezone.utc).isoformat() if vmesh_runtime.last_update_ts else None,
+        "control_status": vmesh_service.controller.get_control_status()
+    }
+
 # --- MESH ARBITRAGE EXCEPTION HANDLING ---
 # Import PaymentRequiredError from the mesh package
 try:
@@ -704,6 +743,9 @@ dispatcher = Dispatcher(bridge, lcp)
 
 @app.post("/api/missions", response_model=models.Mission)
 def create_mission(mission_create: models.MissionCreate):
+    if not check_vmesh_action("write"):
+        raise HTTPException(status_code=503, detail="V-Mesh Policy: Mutation restricted (SAFE_MODE/READONLY)")
+    
     mission = models.Mission.from_create(mission_create)
     # Ensure mission starts as active for immediate orchestration
     mission.status = "active"
@@ -747,6 +789,9 @@ def get_mission(mission_id: str):
 
 @app.put("/api/missions/{mission_id}", response_model=models.Mission)
 def update_mission(mission_id: str, mission: models.Mission):
+    if not check_vmesh_action("write"):
+        raise HTTPException(status_code=503, detail="V-Mesh Policy: Mutation restricted (SAFE_MODE/READONLY)")
+    
     m = storage.get_mission(mission_id)
     if m is None:
         raise HTTPException(404, "Mission not found")
@@ -760,6 +805,9 @@ def update_mission(mission_id: str, mission: models.Mission):
 @app.delete("/api/missions/{mission_id}")
 def delete_mission(mission_id: str):
     """Delete a mission and all its related tasks and jobs."""
+    if not check_vmesh_action("write"):
+        raise HTTPException(status_code=503, detail="V-Mesh Policy: Mutation restricted (SAFE_MODE/READONLY)")
+    
     success = storage.delete_mission(mission_id)
     if not success:
         raise HTTPException(404, "Mission not found")
@@ -787,6 +835,9 @@ def get_chain_context(chain_id: str):
 
 @app.post("/api/missions/{mission_id}/tasks", response_model=models.Task)
 def create_task_for_mission(mission_id: str, task_create: models.TaskCreate):
+    if not check_vmesh_action("write"):
+        raise HTTPException(status_code=503, detail="V-Mesh Policy: Mutation restricted (SAFE_MODE/READONLY)")
+    
     m = storage.get_mission(mission_id)
     if m is None:
         raise HTTPException(404, "Mission not found")
@@ -815,6 +866,9 @@ def get_task(task_id: str):
 
 @app.post("/api/tasks/{task_id}/jobs", response_model=models.Job)
 def create_job_for_task(task_id: str, job_create: models.JobCreate):
+    if not check_vmesh_action("write"):
+        raise HTTPException(status_code=503, detail="V-Mesh Policy: Mutation restricted (SAFE_MODE/READONLY)")
+    
     t = storage.get_task(task_id)
     if t is None:
         raise HTTPException(404, "Task not found")
@@ -940,6 +994,9 @@ def get_job(job_id: str):
 
 @app.put("/api/jobs/{job_id}", response_model=models.Job)
 def update_job(job_id: str, job: models.Job):
+    if not check_vmesh_action("write"):
+        raise HTTPException(status_code=503, detail="V-Mesh Policy: Mutation restricted (SAFE_MODE/READONLY)")
+    
     j = storage.get_job(job_id)
     if j is None:
         raise HTTPException(404, "Job not found")
@@ -960,6 +1017,9 @@ def dispatch_job(job_id: str):
     Manually triggers dispatch (legacy/forced).
     Now mostly handled by central Dispatcher.
     """
+    if not check_vmesh_action("write"):
+        raise HTTPException(status_code=503, detail="V-Mesh Policy: Mutation restricted (SAFE_MODE/READONLY)")
+    
     job = storage.get_job(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
